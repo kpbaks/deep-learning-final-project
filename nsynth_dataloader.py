@@ -7,19 +7,27 @@ Description: Load NSynth dataset using pytorch Dataset.
 If you want to modify the output of the dataset, use the transform
 and target_transform callbacks as ususal.
 """
+import argparse
 import glob
 import json
 import os
-from typing import Callable
 from pathlib import Path
-import argparse
+from typing import Callable
 
 import numpy as np
 import scipy.io.wavfile
 import torch
+
 # import torch.utils.data as data
 import torchvision.transforms as transforms
 from sklearn.preprocessing import LabelEncoder
+
+try:
+    from rich import pretty, print
+    pretty.install()
+except ImportError or ModuleNotFoundError:
+    pass
+
 
 
 class NSynth(torch.utils.data.Dataset):
