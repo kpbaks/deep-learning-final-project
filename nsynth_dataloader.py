@@ -1,16 +1,8 @@
-"""
-File: nsynth.py
-Author: Kwon-Young Choi
-Email: kwon-young.choi@hotmail.fr
-Date: 2018-11-13
-Description: Load NSynth dataset using pytorch Dataset.
-If you want to modify the output of the dataset, use the transform
-and target_transform callbacks as ususal.
-"""
 import argparse
-import glob
 import json
 import os
+import time
+from glob import glob
 from pathlib import Path
 from typing import Callable
 
@@ -21,13 +13,13 @@ import torch
 # import torch.utils.data as data
 import torchvision.transforms as transforms
 from sklearn.preprocessing import LabelEncoder
+from torch import Tensor
 
 try:
     from rich import pretty, print
     pretty.install()
 except ImportError or ModuleNotFoundError:
     pass
-
 
 
 class NSynth(torch.utils.data.Dataset):
@@ -57,7 +49,8 @@ class NSynth(torch.utils.data.Dataset):
         blacklist_pattern: list[str] | None = None,
         categorical_field_list: list[str] | None = None,
     ):
-        assert root.exists() and root.is_dir(), f"{root} is not a valid directory"
+        assert root.exists() and root.is_dir(), f"{root} is not a directory on disk"
+        assert (root / "examples.json").exists(), f"{root}/examples.json does not exist"
 
         if blacklist_pattern is None:
             blacklist_pattern = []
@@ -66,56 +59,95 @@ class NSynth(torch.utils.data.Dataset):
             categorical_field_list = ["instrument_family"]
 
         self.root = root
-        self.filenames = glob.glob(os.path.join(root, "audio/*.wav"))
+        # TODO: maybe make absolute path
+        self.waw_files: list[Path] = [Path(wav) for wav in  glob(f"{root}/audio/*.wav")]
+        # print(f"{self.waw_files = }")
+        # self.filenames = glob.glob(os.path.join(root, "audio/*.wav"))
 
-        with open(os.path.join(root, "examples.json"), "r") as f:
+        with open(root / "examples.json", "r") as f:
             self.json_data = json.load(f)
 
-        for pattern in blacklist_pattern:
-            self.filenames, self.json_data = self.blacklist(
-                self.filenames, self.json_data, pattern
-            )
+        # remove blacklisted samples
+        i: int = 0
+        indices_of_files_to_remove: list[int] = []
+        while i < len(self.waw_files):
+            for pattern in blacklist_pattern:
+                if pattern in self.waw_files[i].name:
+                    indices_of_files_to_remove.append(i)
+                    break
+            i += 1
+
+        self.json_data = {
+            k: v for k, v in self.json_data.items() if any(pattern not in k for pattern in blacklist_pattern)
+        }
+        # remove blacklisted samples
+        # NOTE: We need to remove the files in reverse order to avoid index out of range error
+        # due to how the del keyword works with lists
+        for index in indices_of_files_to_remove[::-1]:
+            del self.waw_files[index]
+
+        # for pattern in blacklist_pattern:
+        #     self.waw_files 
+
+
+            # self.waw_files, self.json_data = self.blacklist(
+            #     self.waw_files, self.json_data, pattern
+            # )
 
         self.categorical_field_list = categorical_field_list
         self.labelencoders: list[LabelEncoder] = []
 
         for i, field in enumerate(self.categorical_field_list):
-            self.labelencoders.append(LabelEncoder())
             field_values = [value[field] for value in self.json_data.values()]
-            self.labelencoders[i].fit(field_values)
+            le = LabelEncoder()
+            le.fit(field_values)
+            self.labelencoders.append(le)
+            # self.labelencoders.append(LabelEncoder())
+            # self.labelencoders[i].fit(field_values)
 
         self.transform = transform
         self.target_transform = target_transform
 
-    def blacklist(self, filenames, json_data, pattern):
-        filenames = [filename for filename in filenames if pattern not in filename]
-        json_data = {
-            key: value for key, value in json_data.items() if pattern not in key
-        }
-        return filenames, json_data
+    # def blacklist(self, filenames, json_data, pattern):
+    #     filenames = [filename for filename in filenames if pattern not in filename]
+    #     json_data = {
+    #         key: value for key, value in json_data.items() if pattern not in key
+    #     }
+    #     return filenames, json_data
 
     def __len__(self) -> int:
-        return len(self.filenames)
+        return len(self.waw_files)
 
-    def __getitem__(self, index: int) -> tuple:
-        """
-        Args:
-            index (int): Index
-        Returns:
-            tuple: (audio sample, *categorical targets, json_data)
-        """
-        name = self.filenames[index]
-        _, sample = scipy.io.wavfile.read(name)
-        target = self.json_data[os.path.splitext(os.path.basename(name))[0]]
+    def __getitem__(self, index: int) -> tuple[Tensor, int, int, dict[str, int | str | list[int]]]:
+
+        assert 0 <= index < len(self.waw_files)
+        wav_file: Path = self.waw_files[index]
+        _, sample = scipy.io.wavfile.read(wav_file)
+        sample = torch.from_numpy(sample)
+        # print(f"{type(sample) = }")
+        # bar = os.path.splitext(wav_file)
+        # print(f"{bar = }")
+        # foo = os.path.splitext(os.path.basename(wav_file))[0]
+        # print(f"{foo = }")
+        key = wav_file.name.removesuffix(".wav")
+        # print(f"{key = }")
+        target = self.json_data[key]
         categorical_target = [
             le.transform([target[field]])[0]
             for field, le in zip(self.categorical_field_list, self.labelencoders)
         ]
+        instrument_family_target: int = categorical_target[0]
+        instrument_source_target: int = categorical_target[1]
         if self.transform is not None:
             sample = self.transform(sample)
         if self.target_transform is not None:
             target = self.target_transform(target)
-        return [sample, *categorical_target, target]
+
+        # print(f"{type(target) = }")
+        # print(f"{target = }")
+        # print(f"{categorical_target = }")
+        return (sample, instrument_family_target, instrument_source_target, target)
+        # return [sample, *categorical_target, target]
 
 
 if __name__ == "__main__":
@@ -132,18 +164,20 @@ if __name__ == "__main__":
     # use instrument_family and instrument_source as classification targets
     dataset = NSynth(
         dataset_dir,
-        # "../nsynth-test",
         transform=tofloat,
         blacklist_pattern=["string"],  # blacklist string instrument
         categorical_field_list=["instrument_family", "instrument_source"],
     )
 
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True)
+    # NOTE: The collate_fn was added to fix the workaround discussed in the issue below
+    # https://github.com/pytorch/pytorch/issues/42654#issuecomment-1000630232
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
 
     for samples, instrument_family_target, instrument_source_target, targets in dataloader:
-        print(
-            samples.shape,
-            instrument_family_target.shape,
-            instrument_source_target.shape,
-        )
-        print(torch.min(samples), torch.max(samples))
+        print(f"{samples[0].shape = }")
+        print(f"{len(instrument_family_target) = }")
+        print(f"{len(instrument_source_target) = }")
+        # print(f"{targets = }")
+        time.sleep(2)
+
+        # print(torch.min(samples), torch.max(samples))
