@@ -177,7 +177,7 @@ if __name__ == "__main__":
         print(f"{samples[0].shape = }")
         print(f"{len(instrument_family_target) = }")
         print(f"{len(instrument_source_target) = }")
-        # print(f"{targets = }")
+        print(f"{targets = }")
         time.sleep(2)
 
         # print(torch.min(samples), torch.max(samples))
