@@ -5,6 +5,7 @@ import time
 from glob import glob
 from pathlib import Path
 from typing import Callable
+from dataclasses import dataclass, asdict
 
 import numpy as np
 import scipy.io.wavfile
@@ -147,7 +148,6 @@ class NSynth(torch.utils.data.Dataset):
         # print(f"{target = }")
         # print(f"{categorical_target = }")
         return (sample, instrument_family_target, instrument_source_target, target)
-        # return [sample, *categorical_target, target]
 
 
 if __name__ == "__main__":
@@ -178,6 +178,3 @@ if __name__ == "__main__":
         print(f"{len(instrument_family_target) = }")
         print(f"{len(instrument_source_target) = }")
         print(f"{targets = }")
-        time.sleep(2)
-
-        # print(torch.min(samples), torch.max(samples))
