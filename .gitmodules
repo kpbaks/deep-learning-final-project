@@ -1,0 +1,3 @@
+[submodule "GANsynth-pytorch"]
+	path = GANsynth-pytorch
+	url = https://github.com/ss12f32v/GANsynth-pytorch.git
