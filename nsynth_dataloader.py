@@ -119,15 +119,7 @@ class NSynth(torch.utils.data.Dataset):
     def __len__(self) -> int:
         return len(self.waw_files)
 
-    @dataclass
-    class Item:
-        sample: Tensor
-        instrument_family_target: int
-        instrument_source_target: int
-        target: dict[str, int | str | list[str]]
-        
-    # def __getitem__(self, index: int) -> tuple[Tensor, int, int, dict[str, int | str | list[int]]]:
-    def __getitem__(self, index: int) -> NSynth.Item:
+    def __getitem__(self, index: int) -> tuple[Tensor, int, int, dict[str, int | str | list[int]]]:
 
         assert 0 <= index < len(self.waw_files)
         wav_file: Path = self.waw_files[index]
@@ -155,9 +147,7 @@ class NSynth(torch.utils.data.Dataset):
         # print(f"{type(target) = }")
         # print(f"{target = }")
         # print(f"{categorical_target = }")
-        # TODO: maybe not a good idea to wrap in a class as it a bit akward with batching
-        return Item(sample, instrument_family_target, instrument_source_target, target)
-        # return [sample, *categorical_target, target]
+        return (sample, instrument_family_target, instrument_source_target, target)
 
 
 if __name__ == "__main__":
@@ -183,13 +173,8 @@ if __name__ == "__main__":
     # https://github.com/pytorch/pytorch/issues/42654#issuecomment-1000630232
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
 
-    # for samples, instrument_family_target, instrument_source_target, targets in dataloader:
-    for item in dataloader:
-            
-        print(f"{item.samples[0].shape = }")
-        print(f"{len(item.instrument_family_target) = }")
-        print(f"{len(item.instrument_source_target) = }")
-        # print(f"{targets = }")
-        time.sleep(2)
-
-        # print(torch.min(samples), torch.max(samples))
+    for samples, instrument_family_target, instrument_source_target, targets in dataloader:
+        print(f"{samples[0].shape = }")
+        print(f"{len(instrument_family_target) = }")
+        print(f"{len(instrument_source_target) = }")
+        print(f"{targets = }")
