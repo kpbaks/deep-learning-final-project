@@ -599,6 +599,26 @@ package:
   size: 300207
   timestamp: 1696001873452
 - platform: linux-64
+  name: cfgv
+  version: 3.3.1
+  category: main
+  manager: conda
+  dependencies:
+  - python >=3.6.1
+  url: https://conda.anaconda.org/conda-forge/noarch/cfgv-3.3.1-pyhd8ed1ab_0.tar.bz2
+  hash:
+    md5: ebb5f5f7dc4f1a3780ef7ea7738db08c
+    sha256: fbc03537a27ef756162c49b1d0608bf7ab12fa5e38ceb8563d6f4859e835ac5c
+  build: pyhd8ed1ab_0
+  arch: x86_64
+  subdir: linux-64
+  build_number: 0
+  license: MIT
+  license_family: MIT
+  noarch: python
+  size: 10788
+  timestamp: 1629909423398
+- platform: linux-64
   name: charset-normalizer
   version: 3.3.2
   category: main
@@ -1404,6 +1424,27 @@ package:
   license_family: MIT
   size: 12089150
   timestamp: 1692900650789
+- platform: linux-64
+  name: identify
+  version: 2.5.32
+  category: main
+  manager: conda
+  dependencies:
+  - python >=3.6
+  - ukkonen
+  url: https://conda.anaconda.org/conda-forge/noarch/identify-2.5.32-pyhd8ed1ab_0.conda
+  hash:
+    md5: 3ef8e9bab1bfaf900bb0a5db8c0c742c
+    sha256: 0783aa58f43d1c113a2ec300a29ba3313184056f9893671c75037fbadaf9e546
+  build: pyhd8ed1ab_0
+  arch: x86_64
+  subdir: linux-64
+  build_number: 0
+  license: MIT
+  license_family: MIT
+  noarch: python
+  size: 78169
+  timestamp: 1700334018935
 - platform: linux-64
   name: idna
   version: '3.4'
@@ -3969,6 +4010,27 @@ package:
   size: 1149552
   timestamp: 1698504905258
 - platform: linux-64
+  name: nodeenv
+  version: 1.8.0
+  category: main
+  manager: conda
+  dependencies:
+  - python 2.7|>=3.7
+  - setuptools
+  url: https://conda.anaconda.org/conda-forge/noarch/nodeenv-1.8.0-pyhd8ed1ab_0.conda
+  hash:
+    md5: 2a75b296096adabbabadd5e9782e5fcc
+    sha256: 1320306234552717149f36f825ddc7e27ea295f24829e9db4cc6ceaff0b032bd
+  build: pyhd8ed1ab_0
+  arch: x86_64
+  subdir: linux-64
+  build_number: 0
+  license: BSD-3-Clause
+  license_family: BSD
+  noarch: python
+  size: 34358
+  timestamp: 1683893151613
+- platform: linux-64
   name: notebook
   version: 7.0.6
   category: main
@@ -4554,6 +4616,31 @@ package:
   license_family: MIT
   size: 20312384
   timestamp: 1700933767948
+- platform: linux-64
+  name: pre-commit
+  version: 3.5.0
+  category: main
+  manager: conda
+  dependencies:
+  - cfgv >=2.0.0
+  - identify >=1.0.0
+  - nodeenv >=0.11.1
+  - python >=3.8
+  - pyyaml >=5.1
+  - virtualenv >=20.10.0
+  url: https://conda.anaconda.org/conda-forge/noarch/pre-commit-3.5.0-pyha770c72_0.conda
+  hash:
+    md5: 964e3d762e427661c59263435a14c492
+    sha256: 51a4a17334a15ec92805cd075776563ff93b3b6c20732c4cb607c98a761ae02f
+  build: pyha770c72_0
+  arch: x86_64
+  subdir: linux-64
+  build_number: 0
+  license: MIT
+  license_family: MIT
+  noarch: python
+  size: 179349
+  timestamp: 1697222328615
 - platform: linux-64
   name: prometheus_client
   version: 0.19.0
@@ -6198,6 +6285,29 @@ package:
   noarch: generic
   size: 117580
   timestamp: 1680041306008
+- platform: linux-64
+  name: ukkonen
+  version: 1.0.1
+  category: main
+  manager: conda
+  dependencies:
+  - cffi
+  - libgcc-ng >=12
+  - libstdcxx-ng >=12
+  - python >=3.11,<3.12.0a0
+  - python_abi 3.11.* *_cp311
+  url: https://conda.anaconda.org/conda-forge/linux-64/ukkonen-1.0.1-py311h9547e67_4.conda
+  hash:
+    md5: 586da7df03b68640de14dc3e8bcbf76f
+    sha256: c2d33e998f637b594632eba3727529171a06eb09896e36aa42f1ebcb03779472
+  build: py311h9547e67_4
+  arch: x86_64
+  subdir: linux-64
+  build_number: 4
+  license: MIT
+  license_family: MIT
+  size: 13961
+  timestamp: 1695549513130
 - platform: linux-64
   name: uri-template
   version: 1.3.0

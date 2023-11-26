@@ -18,6 +18,7 @@ from torch import Tensor
 
 try:
     from rich import pretty, print
+
     pretty.install()
 except ImportError or ModuleNotFoundError:
     pass
@@ -61,7 +62,7 @@ class NSynth(torch.utils.data.Dataset):
 
         self.root = root
         # TODO: maybe make absolute path
-        self.waw_files: list[Path] = [Path(wav) for wav in  glob(f"{root}/audio/*.wav")]
+        self.waw_files: list[Path] = [Path(wav) for wav in glob(f"{root}/audio/*.wav")]
         # print(f"{self.waw_files = }")
         # self.filenames = glob.glob(os.path.join(root, "audio/*.wav"))
 
@@ -79,7 +80,9 @@ class NSynth(torch.utils.data.Dataset):
             i += 1
 
         self.json_data = {
-            k: v for k, v in self.json_data.items() if any(pattern not in k for pattern in blacklist_pattern)
+            k: v
+            for k, v in self.json_data.items()
+            if any(pattern not in k for pattern in blacklist_pattern)
         }
         # remove blacklisted samples
         # NOTE: We need to remove the files in reverse order to avoid index out of range error
@@ -88,12 +91,11 @@ class NSynth(torch.utils.data.Dataset):
             del self.waw_files[index]
 
         # for pattern in blacklist_pattern:
-        #     self.waw_files 
+        #     self.waw_files
 
-
-            # self.waw_files, self.json_data = self.blacklist(
-            #     self.waw_files, self.json_data, pattern
-            # )
+        # self.waw_files, self.json_data = self.blacklist(
+        #     self.waw_files, self.json_data, pattern
+        # )
 
         self.categorical_field_list = categorical_field_list
         self.labelencoders: list[LabelEncoder] = []
@@ -119,8 +121,9 @@ class NSynth(torch.utils.data.Dataset):
     def __len__(self) -> int:
         return len(self.waw_files)
 
-    def __getitem__(self, index: int) -> tuple[Tensor, int, int, dict[str, int | str | list[int]]]:
-
+    def __getitem__(
+        self, index: int
+    ) -> tuple[Tensor, int, int, dict[str, int | str | list[int]]]:
         assert 0 <= index < len(self.waw_files)
         wav_file: Path = self.waw_files[index]
         _, sample = scipy.io.wavfile.read(wav_file)
@@ -151,12 +154,20 @@ class NSynth(torch.utils.data.Dataset):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(prog=os.path.basename(__file__).removesuffix(".py"))
-    parser.add_argument("dataset_dir", type=str, help="dataset directory root. Can be the train, test or valid directory")
+    parser = argparse.ArgumentParser(
+        prog=os.path.basename(__file__).removesuffix(".py")
+    )
+    parser.add_argument(
+        "dataset_dir",
+        type=str,
+        help="dataset directory root. Can be the train, test or valid directory",
+    )
     args = parser.parse_args()
 
     dataset_dir = Path(args.dataset_dir)
-    assert dataset_dir.exists() and dataset_dir.is_dir(), f"{dataset_dir} is not a valid directory"
+    assert (
+        dataset_dir.exists() and dataset_dir.is_dir()
+    ), f"{dataset_dir} is not a valid directory"
 
     # audio samples are loaded as an int16 numpy array
     # rescale intensity range as float [-1, 1]
@@ -171,9 +182,16 @@ if __name__ == "__main__":
 
     # NOTE: The collate_fn was added to fix the workaround discussed in the issue below
     # https://github.com/pytorch/pytorch/issues/42654#issuecomment-1000630232
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
+    dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size=32, shuffle=True, collate_fn=lambda x: tuple(zip(*x))
+    )
 
-    for samples, instrument_family_target, instrument_source_target, targets in dataloader:
+    for (
+        samples,
+        instrument_family_target,
+        instrument_source_target,
+        targets,
+    ) in dataloader:
         print(f"{samples[0].shape = }")
         print(f"{len(instrument_family_target) = }")
         print(f"{len(instrument_source_target) = }")
