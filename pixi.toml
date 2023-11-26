@@ -3,16 +3,17 @@ name = "deep-learning-final-project"
 version = "0.1.0"
 description = "Final Project for the Deep Learning course at Aarhus University Autumn 2023"
 authors = ["kpbaks <kristoffer.pbs@tuta.io>"]
-channels = ["conda-forge"]
+channels = ["conda-forge", "pytorch"]
 platforms = ["linux-64"]
 
 [tasks]
 format = { cmd = "ruff format ." }
 lint = { cmd = "ruff check ." }
 style = { depends_on = ["format", "lint"] }
+jupyter = { cmd = "jupyter lab --no-browser" }
 
 [dependencies]
-python = "3.10.0.*"
+python = "3.11.0.*"
 numpy = "1.26.0.*"
 matplotlib = "3.8.1.*"
 tqdm = "4.66.1.*"
@@ -25,8 +26,14 @@ ipython = "8.17.2.*"
 scipy = "1.11.3.*"
 torchvision = "0.15.2.*"
 scikit-learn = "1.3.2.*"
-h5py = "3.10.0.*"
+# h5py = "3.10.0.*"
 jupyter = "1.0.0.*"
-tensorflow = "2.14.0.*"
-librosa = "0.10.1.*"
-intervaltree = "3.1.0.*"
+# tensorflow = "2.14.0.*"
+# librosa = "0.10.1.*"
+# intervaltree = "3.1.0.*"
+pillow = "10.1.0.*"
+poetry = "1.7.1.*"
+pip = "23.3.1.*"
+ipykernel = "6.26.0.*"
+loguru = "0.7.2.*"
+polars = "0.19.16.*"
