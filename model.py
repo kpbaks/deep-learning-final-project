@@ -22,14 +22,20 @@ class Generator(torch.nn.Module):
         batch_size: int = x.shape[0]
         latent_vector_size: int = x.shape[1]
         assert latent_vector_size == 256, f'Expected {latent_vector_size = } to be 256'
+        num_except_calls: int = 0
+
+        def expect(c: int, h: int, w: int) -> None:
+            """Helper function to check the shape of the tensor at different points in the network."""
+            nonlocal num_except_calls
+            num_except_calls += 1
+            if x.shape != (batch_size, c, h, w):
+                raise ValueError(
+                    f'expect nr. {num_except_calls}: Expected shape ({batch_size}, {c}, {h}, {w}), got {x.shape = }'
+                )
 
         x = self.conv1(x)
-        assert x.shape == (
-            batch_size,
-            256,
-            2,
-            16,
-        ), f'Expected shape ({batch_size}, 256, 2, 16), got {x.shape = }'
+        expect(256, 2, 16)
+
         x = self.leaky_relu(x)
 
         # torch.nn.functional.upsample() or torch.nn.functional.interpolate()?
@@ -49,12 +55,8 @@ class Generator(torch.nn.Module):
         ), f'Expected shape ({batch_size}, 256, 4, 32), got {x.shape = }'
         x = self.leaky_relu(x)
 
-        assert x.shape == (
-            batch_size,
-            2,
-            128,
-            1024,
-        ), f'Expected shape ({batch_size}, 2, 128, 1024), got {x.shape = }'
+        expect(2, 128, 1024)
+
         x = torch.nn.functional.tanh(x)
         return x
 
@@ -113,117 +115,54 @@ class Discriminator(torch.nn.Module):
         assert x.ndim == 4, f'Expected 4 dimensions, got {x.ndim = }'
         batch_size: int = x.shape[0]
 
-        def expect(c: int, h: int, w: int) -> None:
-            assert x.shape == (
-                batch_size,
-                c,
-                h,
-                w,
-            ), f'Expected shape ({batch_size}, {c}, {h}, {w}), got {x.shape = }'
+        num_except_calls: int = 0
 
-        assert x.shape == (
-            batch_size,
-            2,
-            128,
-            1024,
-        ), f'Expected shape ({batch_size}, 2, 128, 1024), got {x.shape = }'
+        def expect(c: int, h: int, w: int) -> None:
+            """Helper function to check the shape of the tensor at different points in the network."""
+            nonlocal num_except_calls
+            num_except_calls += 1
+            if x.shape != (batch_size, c, h, w):
+                raise ValueError(
+                    f'expect nr. {num_except_calls}: Expected shape ({batch_size}, {c}, {h}, {w}), got {x.shape = }'
+                )
+
+        expect(2, 128, 1024)
 
         x = self.conv1(x)
-        assert x.shape == (
-            batch_size,
-            32,
-            128,
-            1024,
-        ), f'Expected shape ({batch_size}, 32, 128, 1024), got {x.shape = }'
+        expect(32, 128, 1024)
         x = self.leaky_relu(x)
         x = self.pool1(x)
-        assert x.shape == (
-            batch_size,
-            32,
-            64,
-            512,
-        ), f'Expected shape ({batch_size}, 32, 64, 512), got {x.shape = }'
+        expect(32, 64, 512)
 
         x = self.conv2(x)
-        assert x.shape == (
-            batch_size,
-            64,
-            64,
-            512,
-        ), f'Expected shape ({batch_size}, 64, 64, 512), got {x.shape = }'
+        expect(64, 64, 512)
         x = self.leaky_relu(x)
-
         x = self.pool2(x)
-        assert x.shape == (
-            batch_size,
-            64,
-            32,
-            256,
-        ), f'Expected shape ({batch_size}, 64, 32, 256), got {x.shape = }'
+        expect(64, 32, 256)
 
         x = self.conv3(x)
-        assert x.shape == (
-            batch_size,
-            128,
-            32,
-            256,
-        ), f'Expected shape ({batch_size}, 128, 32, 256), got {x.shape = }'
+        expect(128, 32, 256)
         x = self.leaky_relu(x)
         x = self.pool3(x)
-        assert x.shape == (
-            batch_size,
-            128,
-            16,
-            128,
-        ), f'Expected shape ({batch_size}, 128, 16, 128), got {x.shape = }'
+        expect(128, 16, 128)
 
         x = self.conv4(x)
-        assert x.shape == (
-            batch_size,
-            256,
-            16,
-            128,
-        ), f'Expected shape ({batch_size}, 256, 16, 128), got {x.shape = }'
+        expect(256, 16, 128)
         x = self.leaky_relu(x)
         x = self.pool4(x)
-        assert x.shape == (
-            batch_size,
-            256,
-            8,
-            64,
-        ), f'Expected shape ({batch_size}, 256, 8, 64), got {x.shape = }'
+        expect(256, 8, 64)
 
         x = self.conv5(x)
-        assert x.shape == (
-            batch_size,
-            256,
-            8,
-            64,
-        ), f'Expected shape ({batch_size}, 256, 8, 64), got {x.shape = }'
+        expect(256, 8, 64)
         x = self.leaky_relu(x)
         x = self.pool5(x)
-        assert x.shape == (
-            batch_size,
-            256,
-            4,
-            32,
-        ), f'Expected shape ({batch_size}, 256, 4, 32), got {x.shape = }'
+        expect(256, 4, 32)
 
         x = self.conv6(x)
-        assert x.shape == (
-            batch_size,
-            256,
-            4,
-            32,
-        ), f'Expected shape ({batch_size}, 256, 4, 32), got {x.shape = }'
+        expect(256, 4, 32)
         x = self.leaky_relu(x)
         x = self.pool6(x)
-        assert x.shape == (
-            batch_size,
-            256,
-            2,
-            16,
-        ), f'Expected shape ({batch_size}, 256, 2, 16), got {x.shape = }'
+        expect(256, 2, 16)
 
         x = x.reshape(batch_size, -1)
         # print(f"{x.shape = }")
@@ -249,9 +188,9 @@ def main() -> int:
 
 
 if __name__ == '__main__':
-    pass
+    # pass
     # import sys
-    # main()
+    main()
     # x = torch.randn(3, 3, names=('N', 'C'))
     # print(f"{x.names = }")
     # sys.exit(main())
