@@ -2,6 +2,38 @@
 import torch
 
 
+class PixelNorm(torch.nn.Module):
+    def __init__(self, epsilon: float = 1e-8) -> None:
+        """
+        PixelNorm is a normalization layer.
+        The function is defined as (page 16 in GANSynth paper):
+        x = x_{nhwc} / (\sqrt{1/C \sum_{c}x^2_{nhwc}} + \epsilon)
+        Parameters:
+        epsilon (float): A small value added to the denominator for numerical stability.
+                         Defaults to 1e-8.
+        """
+        super().__init__()
+        self.epsilon = epsilon
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of the PixelNorm layer.
+
+        Parameters:
+        x (Tensor): The input tensor with shape (n, c, h, w), where n is the batch size,
+                    c is the number of channels, h is the height, and w is the width.
+
+        Returns:
+        Tensor: The normalized tensor of the same shape as the input.
+        """
+        assert x.ndim == 4, f'Expected 4 dimensions, got {x.ndim = }'
+        normalized = x * torch.rsqrt(torch.mean(x**2, dim=1, keepdim=True) + self.epsilon)
+        assert (
+            normalized.shape == x.shape
+        ), f'Expected shape {x.shape = }, got {normalized.shape = }'
+        return normalized
+
+
 class Generator(torch.nn.Module):
     """
     The generator is a convolutional neural network that takes as input a random vector and outputs a spectrogram.
@@ -38,6 +70,7 @@ class Generator(torch.nn.Module):
 
         x = self.leaky_relu(x)
 
+        # NOTE: in the GANSynth paper, they say they use "2x2 box upsampling"
         # torch.nn.functional.upsample() or torch.nn.functional.interpolate()?
         assert x.shape == (
             batch_size,
@@ -73,6 +106,7 @@ class Discriminator(torch.nn.Module):
     def __init__(self, leaky_relu_negative_slope: float) -> None:
         super(Discriminator, self).__init__()
         # TODO: maybe have some dropout layers?
+        # TODO: maybe have some normalization layers?
 
         assert leaky_relu_negative_slope > 0, f'Expected {leaky_relu_negative_slope = } to be > 0'
         self.leaky_relu = torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope)
