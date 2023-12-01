@@ -1,39 +1,96 @@
 # %%
 from pathlib import Path
-import random
 
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.signal import stft
-from scipy.io import wavfile
+
+# import torch
+
+# import torchaudio
+import librosa
+
+# torchaudio
+# %%
+DATASET_DIR = Path.home() / 'datasets' / 'drums'
+wav_files = list(DATASET_DIR.glob('*.wav'))
 
 
-def plot_spectrogram(file_path, max_freq=None):
-    sampling_rate, data = wavfile.read(file_path)
+# Load audio file
+data, sample_rate = librosa.load(wav_files[0], sr=None)  # sr=None means no resampling
 
-    # Apply Short-Time Fourier Transform (STFT)
-    f, t, Zxx = stft(data, fs=sampling_rate, nperseg=256, noverlap=128)
+print(f'sample_rate: {sample_rate}')
+print(f'data.shape: {data.shape}')
+# %%
+# Plot the mel spectrogram
 
-    # Limit the frequency range
-    if max_freq is not None:
-        freq_index = f <= max_freq
-        f = f[freq_index]
-        Zxx = Zxx[freq_index, :]
+n_fft: int = 1024 * 4
+win_length: int | None = None
+hop_length: int = 512
+n_mels: int = 64
 
-    # Plot the spectrogram
-    plt.figure(figsize=(14, 5))
-    plt.pcolormesh(t, f, np.abs(Zxx), shading="gouraud")
-    plt.title("Spectrogram (Limited Frequency)")
-    plt.ylabel("Frequency [Hz]")
-    plt.xlabel("Time [sec]")
-    plt.colorbar(format="%+2.0f dB")
-    plt.ylim(0, max_freq if max_freq is not None else None)
-    plt.show()
+mel_spectrogram = librosa.feature.melspectrogram(
+    y=data,
+    sr=sample_rate,
+    n_fft=n_fft,
+    win_length=win_length,
+    hop_length=hop_length,
+    n_mels=n_mels,
+    htk=True,
+    norm=None,
+)
+
+assert mel_spectrogram.shape[0] == n_mels
+
+print(f'mel_spectrogram.shape: {mel_spectrogram.shape}')
+
+# %%
+
+plt.figure(figsize=(10, 4))
+librosa.display.specshow(
+    librosa.power_to_db(mel_spectrogram, ref=np.max), y_axis='mel', fmax=8000, x_axis='time'
+)
+
+plt.colorbar(format='%+2.0f dB')
+
+plt.title('Mel spectrogram')
 
 
-# Call the function with the path to your audio file and the maximum frequency of interest
+# %%
 
-DATASET_DIR = Path.home() / "datasets" / "drums"
-wav_files = list(DATASET_DIR.glob("*.wav"))
+# Paragraph is taken from the GANSynth paper page 4:
 
-plot_spectrogram(str(wav_files[0]), max_freq=5000)  # Adjust max_freq as needed
+# For spectral representations, we compute STFT magnitudes and phase angles using TensorFlow’s built-in implementation. We use an STFT with 256 stride and 1024 frame size, resulting in 75% frame overlap and 513 frequency bins. We trim the Nyquist frequency and pad in time to get an “image” of size (256, 512, 2). The two channel dimension correspond to magnitude and phase. We take the log of the magnitude to better constrain the range and then scale the magnitudes to be between -1 and 1 to match the tanh output nonlinearity of the generator network. The phase angle is also scaled to between -1 and 1 and we refer to these variants as “phase” models. We optionally unwrap the phase angle and take the finite difference as in Figure 1; we call the resulting models “instantaneous frequency” (“IF”) models. We also find performance is sensitive to having sufficient frequency resolution at the lower frequency range. Maintaining 75% overlap we are able to double the STFT frame size and stride, resulting in spectral images with size (128, 1024, 2), which we refer to as high frequency resolution, “+ H”, variants. Lastly, to provide even more separation of lower frequencies we transform both the log magnitudes and instantaneous frequencies to a mel frequency scale without dimensional compression (1024 bins), which we refer to as “IF-Mel” variants. To convert back to linear STFTs we just use the approximate inverse linear transformation, which, perhaps surprisingly does not harm audio quality significantly.
+
+stride: int = 256
+frame_size: int = 1024
+
+stft = librosa.stft(
+    data,
+    n_fft=frame_size,
+    hop_length=stride,
+    win_length=win_length,
+)
+
+
+print(f'stft.shape: {stft.shape}')
+assert stft.shape[0] == frame_size // 2 + 1 == 513, f'{stft.shape = }'
+
+
+magnitude = np.abs(stft)
+phase = np.angle(stft)
+
+# Plot the magnitude spectrogram
+plt.figure(figsize=(10, 4))
+librosa.display.specshow(
+    librosa.amplitude_to_db(magnitude, ref=np.max), y_axis='linear', fmax=8000, x_axis='time'
+)
+
+plt.colorbar(format='%+2.0f dB')
+
+plt.title('Magnitude spectrogram')
+
+# Plot the phase spectrogram
+plt.figure(figsize=(10, 4))
+librosa.display.specshow(phase, y_axis='linear', fmax=8000, x_axis='time')
+
+plt.colorbar(format='%+2.0f dB')

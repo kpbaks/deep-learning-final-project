@@ -3,11 +3,17 @@
 # Check that pixi is installed
 if [ ! command -v pixi &> /dev/null ]
 then
-    echo "pixi could not be found"
-    echo "Please install pixi and try again"
-    exit 1
+    if [ command -v cargo &> /dev/null ]
+    then
+        cargo install --locked pixi
+    else
+        curl -fsSL https://pixi.sh/install.sh | bash
+    fi
 fi
 
+if [ -d ~/.pixi/bin ]; then
+    export PATH=~/.pixi/bin:$PATH
+fi
 
 pixi install
 
