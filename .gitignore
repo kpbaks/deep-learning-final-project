@@ -160,3 +160,7 @@ cython_debug/
 #.idea/
 
 .pixi/
+
+
+# temporary files
+_temp/

@@ -6063,6 +6063,28 @@ package:
   size: 31876
   timestamp: 1604249020971
 - platform: linux-64
+  name: pywavelets
+  version: 1.4.1
+  category: main
+  manager: conda
+  dependencies:
+  - libgcc-ng >=12
+  - numpy >=1.22.4,<2.0a0
+  - python >=3.10,<3.11.0a0
+  - python_abi 3.10.* *_cp310
+  url: https://conda.anaconda.org/conda-forge/linux-64/pywavelets-1.4.1-py310h1f7b6fc_1.conda
+  hash:
+    md5: be6f0382440ccbf9fb01bb19ab1f1fc0
+    sha256: 2aa5da771dd7e4ec8316de51edd7aefcb6f688f7e4d2a2905faac76462826cf7
+  build: py310h1f7b6fc_1
+  arch: x86_64
+  subdir: linux-64
+  build_number: 1
+  license: MIT
+  license_family: MIT
+  size: 3689326
+  timestamp: 1695567803832
+- platform: linux-64
   name: pyyaml
   version: 6.0.1
   category: main
