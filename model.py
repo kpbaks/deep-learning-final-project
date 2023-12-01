@@ -56,6 +56,9 @@ class Generator(torch.nn.Module):
         self.leaky_relu = torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope)
         self.pixel_norm = PixelNorm()
 
+        # (batch_size, latent_size + pitch_conditioning_size, 1, 1)
+        # to (batch_size, 256, 2, 16)
+
         self.conv1 = torch.nn.Conv2d(in_channels=256, out_channels=2, kernel_size=(1, 1))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -122,8 +125,8 @@ class Discriminator(torch.nn.Module):
         assert leaky_relu_negative_slope > 0, f'Expected {leaky_relu_negative_slope = } to be > 0'
         self.leaky_relu = torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope)
 
-        self.pool1 = torch.nn.AvgPool2d((2, 2), stride=2)
         self.conv1 = torch.nn.Conv2d(in_channels=2, out_channels=32, kernel_size=(1, 1), bias=bias)
+        self.pool1 = torch.nn.AvgPool2d((2, 2), stride=2)
 
         self.conv2 = torch.nn.Conv2d(
             in_channels=32, out_channels=64, kernel_size=(3, 3), bias=bias, padding=(1, 1)
@@ -156,7 +159,7 @@ class Discriminator(torch.nn.Module):
         # self.fc1 = torch.nn.Linear(in_features=256 * 2 * 16, out_features=1)
 
         self.conv7 = torch.nn.Conv2d(
-            in_channels=256, out_channels=12, kernel_size=(2, 16), bias=bias
+            in_channels=256, out_channels=12, kernel_size=(2, 8), bias=bias
         )
         self.sigmoid = torch.nn.Sigmoid()
 
@@ -178,43 +181,43 @@ class Discriminator(torch.nn.Module):
                     f'expect nr. {num_except_calls}: Expected shape ({batch_size}, {c}, {h}, {w}), got {x.shape = }'
                 )
 
-        expect(2, 128, 1024)
+        expect(2, 128, 512)
 
         x = self.conv1(x)
-        expect(32, 128, 1024)
+        expect(32, 128, 512)
         x = self.leaky_relu(x)
         x = self.pool1(x)
-        expect(32, 64, 512)
+        expect(32, 64, 256)
 
         x = self.conv2(x)
-        expect(64, 64, 512)
+        expect(64, 64, 256)
         x = self.leaky_relu(x)
         x = self.pool2(x)
-        expect(64, 32, 256)
+        expect(64, 32, 128)
 
         x = self.conv3(x)
-        expect(128, 32, 256)
+        expect(128, 32, 128)
         x = self.leaky_relu(x)
         x = self.pool3(x)
-        expect(128, 16, 128)
+        expect(128, 16, 64)
 
         x = self.conv4(x)
-        expect(256, 16, 128)
+        expect(256, 16, 64)
         x = self.leaky_relu(x)
         x = self.pool4(x)
-        expect(256, 8, 64)
+        expect(256, 8, 32)
 
         x = self.conv5(x)
-        expect(256, 8, 64)
+        expect(256, 8, 32)
         x = self.leaky_relu(x)
         x = self.pool5(x)
-        expect(256, 4, 32)
+        expect(256, 4, 16)
 
         x = self.conv6(x)
-        expect(256, 4, 32)
+        expect(256, 4, 16)
         x = self.leaky_relu(x)
         x = self.pool6(x)
-        expect(256, 2, 16)
+        expect(256, 2, 8)
 
         # Global average pooling
 
@@ -227,12 +230,7 @@ class Discriminator(torch.nn.Module):
         # print(f"{x.shape = }")
         # x = self.fc1(x)
 
-        assert x.shape == (
-            batch_size,
-            1,
-            1,
-            1,
-        ), f'Expected shape ({batch_size}, 1, 1, 1), got {x.shape = }'
+        expect(1, 1, 1)
 
         return x
 
@@ -248,7 +246,7 @@ def main() -> int:
     d = Discriminator(0.2)
     d.to(device)
     # (batch_size, width, height, channels)
-    x = torch.randn(1, 128, 1024, 2)
+    x = torch.randn(1, 128, 512, 2)
 
     # PyTorch expects (batch_size, channels, width, height)
     x = x.permute(0, 3, 1, 2)
