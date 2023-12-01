@@ -18,7 +18,6 @@ class PixelNorm(torch.nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of the PixelNorm layer.
-
         Parameters:
         x (Tensor): The input tensor with shape (n, c, h, w), where n is the batch size,
                     c is the number of channels, h is the height, and w is the width.
@@ -43,11 +42,21 @@ class Generator(torch.nn.Module):
     Is to speed up training time.
     """
 
-    def __init__(self, leaky_relu_negative_slope: float) -> None:
+    def __init__(
+        self, latent_size: int, pitch_conditioning_size: int, leaky_relu_negative_slope: float
+    ) -> None:
         super(Generator, self).__init__()
 
+        assert latent_size > 0, f'Expected {latent_size = } to be > 0'
+        assert pitch_conditioning_size > 0, f'Expected {pitch_conditioning_size = } to be > 0'
+        self.latent_size = latent_size
+        self.pitch_conditioning_size = pitch_conditioning_size
         assert leaky_relu_negative_slope > 0, f'Expected {leaky_relu_negative_slope = } to be > 0'
+
         self.leaky_relu = torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope)
+        self.pixel_norm = PixelNorm()
+
+        self.conv1 = torch.nn.Conv2d(in_channels=256, out_channels=2, kernel_size=(1, 1))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert x.ndim == 2, f'Expected 2 dimensions, got {x.ndim = }'
@@ -108,41 +117,50 @@ class Discriminator(torch.nn.Module):
         # TODO: maybe have some dropout layers?
         # TODO: maybe have some normalization layers?
 
+        bias: bool = False
+
         assert leaky_relu_negative_slope > 0, f'Expected {leaky_relu_negative_slope = } to be > 0'
         self.leaky_relu = torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope)
 
         self.pool1 = torch.nn.AvgPool2d((2, 2), stride=2)
-        self.conv1 = torch.nn.Conv2d(in_channels=2, out_channels=32, kernel_size=(1, 1))
+        self.conv1 = torch.nn.Conv2d(in_channels=2, out_channels=32, kernel_size=(1, 1), bias=bias)
 
         self.conv2 = torch.nn.Conv2d(
-            in_channels=32, out_channels=64, kernel_size=(3, 3), padding=(1, 1)
+            in_channels=32, out_channels=64, kernel_size=(3, 3), bias=bias, padding=(1, 1)
         )
         self.pool2 = torch.nn.AvgPool2d((2, 2), stride=2)
 
         self.conv3 = torch.nn.Conv2d(
-            in_channels=64, out_channels=128, kernel_size=(3, 3), padding=(1, 1)
+            in_channels=64, out_channels=128, kernel_size=(3, 3), bias=bias, padding=(1, 1)
         )
         self.pool3 = torch.nn.AvgPool2d((2, 2), stride=2)
 
         self.conv4 = torch.nn.Conv2d(
-            in_channels=128, out_channels=256, kernel_size=(3, 3), padding=(1, 1)
+            in_channels=128, out_channels=256, kernel_size=(3, 3), bias=bias, padding=(1, 1)
         )
         self.pool4 = torch.nn.AvgPool2d((2, 2), stride=2)
 
         self.conv5 = torch.nn.Conv2d(
-            in_channels=256, out_channels=256, kernel_size=(3, 3), padding=(1, 1)
+            in_channels=256, out_channels=256, kernel_size=(3, 3), bias=bias, padding=(1, 1)
         )
         self.pool5 = torch.nn.AvgPool2d((2, 2), stride=2)
 
         self.conv6 = torch.nn.Conv2d(
-            in_channels=256, out_channels=256, kernel_size=(3, 3), padding=(1, 1)
+            in_channels=256, out_channels=256, kernel_size=(3, 3), bias=bias, padding=(1, 1)
         )
         self.pool6 = torch.nn.AvgPool2d((2, 2), stride=2)
 
         # GANSynth does NOT use a fully connected layer at the end, but I do not fully understand how
         # they go from the 2x2x256 tensor to a single scalar value.
         # WaveGAN uses a fully connected layer at the end, so I will do the same.
-        self.fc1 = torch.nn.Linear(in_features=256 * 2 * 16, out_features=1)
+        # self.fc1 = torch.nn.Linear(in_features=256 * 2 * 16, out_features=1)
+
+        self.conv7 = torch.nn.Conv2d(
+            in_channels=256, out_channels=12, kernel_size=(2, 16), bias=bias
+        )
+        self.sigmoid = torch.nn.Sigmoid()
+
+        self.conv8 = torch.nn.Conv2d(in_channels=12, out_channels=1, kernel_size=(1, 1), bias=bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # (batch_size, channels, height, width)
@@ -198,14 +216,33 @@ class Discriminator(torch.nn.Module):
         x = self.pool6(x)
         expect(256, 2, 16)
 
-        x = x.reshape(batch_size, -1)
+        # Global average pooling
+
+        x = self.conv7(x)
+        x = torch.nn.functional.softmax(x, dim=1)
+        # x = self.sigmoid(x)
+
+        x = self.conv8(x)
+        # x = x.reshape(batch_size, -1)
         # print(f"{x.shape = }")
-        x = self.fc1(x)
+        # x = self.fc1(x)
+
+        assert x.shape == (
+            batch_size,
+            1,
+            1,
+            1,
+        ), f'Expected shape ({batch_size}, 1, 1, 1), got {x.shape = }'
+
         return x
 
 
 def main() -> int:
     from loguru import logger
+
+    seed: int = 1234
+    torch.manual_seed(seed)
+    torch.use_deterministic_algorithms(True)  # Needed for reproducible results
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     d = Discriminator(0.2)
@@ -227,4 +264,5 @@ if __name__ == '__main__':
     main()
     # x = torch.randn(3, 3, names=('N', 'C'))
     # print(f"{x.names = }")
+
     # sys.exit(main())
