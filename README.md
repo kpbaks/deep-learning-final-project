@@ -51,11 +51,11 @@ Now you can run the [pre-processing scripts](#pre-processing-steps).
 
 ### Pre-Processing Steps
 
-- [ ] Convert to 32-bit float
-- [ ] Sum channels to mono
-- [ ] Downsample to 44.1kHz (optional only if original sample is > 48 kHz, because 44.1 is similar to 48, so we accept the small pitch shift).
-- [ ] Trim or pad to exactly 64000 samples per audio file
+- [x] Convert to 32-bit float
+- [x] Sum channels to mono
+- [x] Downsample to 44.1kHz
+- [x] Trim or pad to exactly N samples per audio file
 - [ ] Detrend
-- [ ] Declick (fade out last ~100 samples)
+- [x] Declick (fade out last ~100 samples)
 - [ ] Normalize
-- [ ] Save as `<instrument>_<number>` for example `snare_123.wav`.
+- [x] Save as `<instrument>_<number>` for example `snare_123.wav`.

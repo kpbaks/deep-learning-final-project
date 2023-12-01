@@ -4,18 +4,27 @@ from scipy.io import wavfile
 from dataclasses import dataclass
 from itertools import chain
 import numpy as np
+from util import unwrap
 
 
 STANDARD_CATEGORIES = ["chat", "clap", "cym", "kick", "ohat", "other", "snare", "tom"]
 STANDARD_DEST_PATH = "_dataset"
 
 
-@dataclass
 class AudioFile:
-    path: Path
-    name: str
-    data: np.ndarray | None = None
-    sample_rate: int | None = None
+    def __init__(
+        self,
+        path: Path,
+        name: str,
+        data: np.ndarray = np.array([]),
+        sample_rate: int | None = None,
+        labels: list[str] = [],
+    ):
+        self.path = path
+        self.name = name
+        self.data = data
+        self.sample_rate = sample_rate
+        self.labels = labels
 
     def load_data(self):
         with self.path.open("rb") as fh:
@@ -31,11 +40,14 @@ class AudioFile:
         return self
 
 
+FileStream = Iterator[AudioFile]
+
+
 def file_loader(base_path: str) -> Iterator[AudioFile]:
     for category in STANDARD_CATEGORIES:
         dir_ = Path(base_path) / category
         for file in dir_.glob("*.wav"):
-            yield AudioFile(file, category).load_data()
+            yield AudioFile(unwrap(file), category).load_data()
 
 
 def file_storer(base_path: str, file_stream: Iterator[AudioFile]):
@@ -45,4 +57,15 @@ def file_storer(base_path: str, file_stream: Iterator[AudioFile]):
         file.store_data(new_path)
 
 
-file_storer("./_temp", file_loader("./_temp"))
+def head(file_stream: FileStream):
+    for i, file in enumerate(file_stream):
+        if i >= 100:
+            break
+        print("---")
+        print(f"name: {file.name}")
+        print(f"path: {file.path}")
+        print(f"size: {file.data.shape}")
+        print(f"sr: {file.sample_rate}")
+
+
+head(file_loader("./_temp"))
