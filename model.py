@@ -1,5 +1,6 @@
 # %%
 import torch
+import time
 
 
 class PixelNorm(torch.nn.Module):
@@ -295,19 +296,15 @@ def main() -> int:
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     d = Discriminator(0.2)
     d.to(device)
-    # (batch_size, width, height, channels)
-    x = torch.randn(1, 128, 512, 2)
-
-    # PyTorch expects (batch_size, channels, width, height)
-    x = x.permute(0, 3, 1, 2)
-    y = d(x.to(device))
-    logger.info(f'{y.shape = }')
 
     latent_size: int = 256
     pitch_conditioning_size: int = 3 * 4
     g = Generator(latent_size, pitch_conditioning_size, 0.2)
     g.to(device)
 
+    t_start = time.time()
+
+    # Generate
     z = torch.randn(1, 1, 1, latent_size + pitch_conditioning_size)
     z = z.permute(0, 3, 1, 2)
     z = z.to(device)
@@ -315,6 +312,19 @@ def main() -> int:
 
     y = g(z)
     logger.info(f'{y.shape = }')
+
+    # Discriminate
+    # (batch_size, width, height, channels)
+    # x = torch.randn(1, 128, 512, 2)
+
+    # PyTorch expects (batch_size, channels, width, height)
+    # x = x.permute(0, 3, 1, 2)
+    discrimination = d(y.to(device))
+    logger.info(f'{discrimination.shape = }')
+
+    t_diff = time.time() - t_start
+
+    logger.info(f'{t_diff = }')
 
     return 0
 
