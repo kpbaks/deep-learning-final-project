@@ -59,13 +59,35 @@ class Generator(torch.nn.Module):
         # (batch_size, latent_size + pitch_conditioning_size, 1, 1)
         # to (batch_size, 256, 2, 16)
 
-        self.conv1 = torch.nn.Conv2d(in_channels=256, out_channels=2, kernel_size=(1, 1))
+        self.conv1 = torch.nn.ConvTranspose2d(
+            in_channels=latent_size + pitch_conditioning_size,
+            out_channels=256,
+            kernel_size=(2, 16),
+            bias=False,
+        )
+
+        # self.conv2 = torch.nn.ConvTranspose2d(256, 256, kernel_size=(3, 3), padding="same", bias=False)
+        self.conv2 = torch.nn.Conv2d(256, 256, kernel_size=(3, 3), padding='same', bias=False)
+
+        self.conv3 = torch.nn.Conv2d(256, 256, kernel_size=(3, 3), padding='same', bias=False)
+
+        self.conv4 = torch.nn.Conv2d(256, 256, kernel_size=(3, 3), padding='same', bias=False)
+
+        self.conv5 = torch.nn.Conv2d(256, 128, kernel_size=(3, 3), padding='same', bias=False)
+
+        self.conv6 = torch.nn.Conv2d(128, 64, kernel_size=(3, 3), padding='same', bias=False)
+
+        self.conv7 = torch.nn.Conv2d(64, 32, kernel_size=(3, 3), padding='same', bias=False)
+
+        self.conv8 = torch.nn.Conv2d(32, 2, kernel_size=(1, 1), padding='same', bias=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        assert x.ndim == 2, f'Expected 2 dimensions, got {x.ndim = }'
+        assert x.ndim == 4, f'Expected 2 dimensions, got {x.ndim = }'
         batch_size: int = x.shape[0]
         latent_vector_size: int = x.shape[1]
-        assert latent_vector_size == 256, f'Expected {latent_vector_size = } to be 256'
+        assert (
+            latent_vector_size == self.latent_size + self.pitch_conditioning_size
+        ), f'Expected {latent_vector_size = } to be {self.latent_size + self.pitch_conditioning_size = }'
         num_except_calls: int = 0
 
         def expect(c: int, h: int, w: int) -> None:
@@ -77,32 +99,60 @@ class Generator(torch.nn.Module):
                     f'expect nr. {num_except_calls}: Expected shape ({batch_size}, {c}, {h}, {w}), got {x.shape = }'
                 )
 
+        def a(x):
+            return self.pixel_norm(self.leaky_relu(x))
+
         x = self.conv1(x)
         expect(256, 2, 16)
+        x = a(x)
 
-        x = self.leaky_relu(x)
-
-        # NOTE: in the GANSynth paper, they say they use "2x2 box upsampling"
-        # torch.nn.functional.upsample() or torch.nn.functional.interpolate()?
-        assert x.shape == (
-            batch_size,
-            256,
-            4,
-            32,
-        ), f'Expected shape ({batch_size}, 256, 4, 32), got {x.shape = }'
+        # Upsample to (batch_size, 256, 4, 32)
+        x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
+        expect(256, 4, 32)
 
         x = self.conv2(x)
-        assert x.shape == (
-            batch_size,
-            256,
-            4,
-            32,
-        ), f'Expected shape ({batch_size}, 256, 4, 32), got {x.shape = }'
-        x = self.leaky_relu(x)
+        expect(256, 4, 32)
+        x = a(x)
+        x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
+        expect(256, 8, 64)
 
-        expect(2, 128, 1024)
+        x = self.conv3(x)
+        expect(256, 8, 64)
+        x = a(x)
+        x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
+        expect(256, 16, 128)
 
+        x = self.conv4(x)
+        expect(256, 16, 128)
+        x = a(x)
+        x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
+        expect(256, 32, 256)
+
+        x = self.conv5(x)
+        expect(128, 32, 256)
+        x = a(x)
+        x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
+        expect(128, 64, 512)
+
+        x = self.conv6(x)
+        expect(64, 64, 512)
+        x = a(x)
+
+        x = torch.nn.functional.interpolate(x, scale_factor=(2, 1), mode='nearest')
+        expect(64, 128, 512)
+        x = self.conv7(x)
+        expect(32, 128, 512)
+        x = a(x)
+
+        x = self.conv8(x)
+        expect(2, 128, 512)
         x = torch.nn.functional.tanh(x)
+
+        # # NOTE: in the GANSynth paper, they say they use "2x2 box upsampling"
+        # # torch.nn.functional.upsample() or torch.nn.functional.interpolate()?
+
+        expect(2, 128, 512)
+
         return x
 
 
@@ -251,6 +301,19 @@ def main() -> int:
     # PyTorch expects (batch_size, channels, width, height)
     x = x.permute(0, 3, 1, 2)
     y = d(x.to(device))
+    logger.info(f'{y.shape = }')
+
+    latent_size: int = 256
+    pitch_conditioning_size: int = 3 * 4
+    g = Generator(latent_size, pitch_conditioning_size, 0.2)
+    g.to(device)
+
+    z = torch.randn(1, 1, 1, latent_size + pitch_conditioning_size)
+    z = z.permute(0, 3, 1, 2)
+    z = z.to(device)
+    logger.info(f'{z.shape = }')
+
+    y = g(z)
     logger.info(f'{y.shape = }')
 
     return 0
