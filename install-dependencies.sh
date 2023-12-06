@@ -18,5 +18,7 @@ fi
 pixi install
 
 # pixi run python3 -m pip install audio-diffusion-pytorch # Not in conda-forge
+pixi run python3 -m pip install torch --index-url https://download.pytorch.org/whl/cu118
+pixi run python3 -m pip install torchinfo
 
 echo "Dependencies installed"

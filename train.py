@@ -2,31 +2,31 @@
 # %%
 # import os
 import random
+import sys
+
 # import sys
 # from dataclasses import asdict, astuple, dataclass
+from pathlib import Path
 
 import torch
+import torchinfo
 from loguru import logger
-from torch import nn as nn
 
-# from pathlib import Path
-# import argparse
-# import time
+from dataset import DrumsDataset
 from model import Discriminator, Generator
 
-# from torch import Tensor
-# from torch.utils.data import Dataset, DataLoader
-# from torchvision import transformsp
 
-
-# @dataclass
-# class Config:
+def is_power_of_2(n: int) -> bool:
+    """
+    Check if a number is a power of 2.
+    """
+    return (n & (n - 1) == 0) and n != 0
 
 
 def train(
     g: Generator,
     d: Discriminator,
-    dataloader: torch.utils.data.Dataloader,
+    dataloader: torch.utils.data.DataLoader,
     lr: float,
     num_epochs: int,
 ) -> None:
@@ -35,16 +35,16 @@ def train(
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-    g_optim = torch.optim.Adam(g.parameters(), lr=lr, betas=(0.5, 0.999))
-    d_optim = torch.optim.Adam(d.parameters(), lr=lr, betas=(0.5, 0.999))
+    _g_optim = torch.optim.Adam(g.parameters(), lr=lr, betas=(0.5, 0.999))
+    _d_optim = torch.optim.Adam(d.parameters(), lr=lr, betas=(0.5, 0.999))
 
-    criterion = nn.BCELoss()
+    _criterion = torch.nn.BCELoss()
 
     g.train()
     d.train()
 
-    g_losses: list[float] = []
-    d_losses: list[float] = []
+    _g_losses: list[float] = []
+    _d_losses: list[float] = []
 
     # TODO: maybe initialize weights here
     # TODO: maybe use custom tqdm progress bar
@@ -52,7 +52,7 @@ def train(
         for i, data in enumerate(dataloader, 0):
             d.zero_grad()
 
-            data = data.tlisto(device)
+            data = data.to(device)
             batch_size = data.size(0)
 
             # Train discriminator with real data
@@ -65,10 +65,10 @@ def main() -> int:
     random.seed(seed)
     torch.manual_seed(seed)
     torch.use_deterministic_algorithms(True)  # Needed for reproducible results
+    logger.info(f'{torch.cuda.is_available() = }')
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     npgu: int = torch.cuda.device_count()
-    logger.info(f'{npgu = }')
-    logger.info(f'{device = }')
+    logger.info(f'{npgu = } {device = }')
 
     latent_size: int = 256
     pitch_conditioning_size: int = 3 * 4
@@ -77,18 +77,52 @@ def main() -> int:
 
     d = Discriminator(leaky_relu_negative_slope=0.2).to(device)
 
-    if (device.type == 'cuda') and (npgu > 1):
-        logger.info(f'Using {npgu} GPUs')
-        g = torch.nn.DataParallel(g, list(range(npgu)))
-        d = torch.nn.DataParallel(d, list(range(npgu)))
+    # if (device.type == 'cuda') and (npgu > 1):
+    #     logger.info(f'Using {npgu} GPUs')
+    #     g = torch.nn.DataParallel(g, list(range(npgu)))
+    #     d = torch.nn.DataParallel(d, list(range(npgu)))
 
     logger.debug(f'{g = }')
     logger.debug(f'{d = }')
+
+    dataset_dir = Path.home() / 'datasets' / 'classic_clean'
+    dataset = DrumsDataset(dataset_dir)
+
+    # Estimate the highest batch size that fits in memory, based on the size of the dataset
+
+    max_cuda_memory: int = torch.cuda.get_device_properties(device).total_memory
+    logger.info(f'{max_cuda_memory = }')
+    available_cuda_memory: int = max_cuda_memory - torch.cuda.memory_allocated(device)
+    logger.info(f'{available_cuda_memory = }')
+    cuda_memory_utilization_percentage: float = available_cuda_memory / max_cuda_memory * 100.0
+    logger.info(f'{cuda_memory_utilization_percentage = }%')
+
+    batch_size = 32
+    assert is_power_of_2(batch_size), f'{batch_size = } must be a power of 2'
+
+    generator_stats = torchinfo.summary(g, input_size=(batch_size, 268, 1, 1))
+    discriminator_stats = torchinfo.summary(d, input_size=(batch_size, 2, 128, 512))
+    logger.info(f'{generator_stats = }')
+    logger.info(f'{discriminator_stats = }')
+
+    sizeof_dataset_sample: int = dataset[0].element_size() * dataset[0].numel()
+    sizeof_batch: int = sizeof_dataset_sample * batch_size
+    sizeof_dataset: int = sizeof_dataset_sample * len(dataset)
+    logger.info(f'{sizeof_dataset_sample = } B {sizeof_batch = } B {sizeof_dataset = } B')
+
+    dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size=batch_size, shuffle=True, num_workers=2
+    )
+    logger.info(f'{generator_stats.total_params = }')
+
+    train(g, d, dataloader, lr=0.0002, num_epochs=10)
 
     return 0
 
 
 if __name__ == '__main__':
-    # sys.exit(main(len(sys.argv), sys.argv))
+    logger.debug(f'{sys.executable = }')
     main()
+    # sys.exit()
     # sys.exit(main(len(sys.argv), sys.argv))
+    # pass

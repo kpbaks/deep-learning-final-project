@@ -3,7 +3,7 @@ name = "deep-learning-final-project"
 version = "0.1.0"
 description = "Final Project for the Deep Learning course at Aarhus University Autumn 2023"
 authors = ["kpbaks <kristoffer.pbs@tuta.io>"]
-channels = ["conda-forge", "pytorch"]
+channels = ["conda-forge", "pytorch", "nvidia"]
 platforms = ["linux-64"]
 
 [tasks]
@@ -28,7 +28,7 @@ poetry = "1.7.1.*"
 polars = "0.19.16.*"
 pre-commit = "3.5.0.*"
 python = "3.10.0.*"
-pytorch = "2.0.0.*"
+# pytorch = "2.0.0.*"
 rich = "13.6.0.*"
 ruff = "0.1.5.*"
 ruff-lsp = "0.0.45.*"
@@ -37,3 +37,4 @@ scipy = "1.11.3.*"
 # torchaudio = "2.1.0.*"
 # torchvision = "0.15.2.*"
 tqdm = "4.66.1.*"
+# torchinfo = "1.8.0.*"

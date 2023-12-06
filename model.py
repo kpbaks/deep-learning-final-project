@@ -82,6 +82,9 @@ class Generator(torch.nn.Module):
 
         self.conv8 = torch.nn.Conv2d(32, 2, kernel_size=(1, 1), padding='same', bias=False)
 
+    def expected_input_shape(self) -> torch.Size:
+        return torch.Size([1, self.latent_size + self.pitch_conditioning_size, 1, 1])
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert x.ndim == 4, f'Expected 2 dimensions, got {x.ndim = }'
         batch_size: int = x.shape[0]
@@ -147,6 +150,7 @@ class Generator(torch.nn.Module):
 
         x = self.conv8(x)
         expect(2, 128, 512)
+        # TODO: maybe batch normalize the output?
         x = torch.nn.functional.tanh(x)
 
         # # NOTE: in the GANSynth paper, they say they use "2x2 box upsampling"
@@ -215,6 +219,9 @@ class Discriminator(torch.nn.Module):
         self.sigmoid = torch.nn.Sigmoid()
 
         self.conv8 = torch.nn.Conv2d(in_channels=12, out_channels=1, kernel_size=(1, 1), bias=bias)
+
+    def expected_input_shape(self) -> torch.Size:
+        return torch.Size([2, 128, 512])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # (batch_size, channels, height, width)
