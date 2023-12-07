@@ -306,6 +306,79 @@ class Discriminator(torch.nn.Module):
 
         self.conv8 = torch.nn.Conv2d(in_channels=12, out_channels=1, kernel_size=(1, 1), bias=bias)
 
+        self.layers = torch.nn.Sequential(
+            torch.nn.Conv2d(
+                in_channels=2, 
+                out_channels=32, 
+                kernel_size=(1, 1), 
+                bias=False,
+            ),
+            torch.nn.BatchNorm2d(32),
+            torch.nn.AvgPool2d((2, 2), stride=2),
+            torch.nn.Conv2d(
+                in_channels=32, 
+                out_channels=64, 
+                kernel_size=(3, 3), 
+                bias=False, 
+                padding=(1, 1)
+            ),
+            torch.nn.BatchNorm2d(64),
+            torch.nn.AvgPool2d((2, 2), stride=2),
+            torch.nn.Conv2d(
+                in_channels=64, 
+                out_channels=128, 
+                kernel_size=(3, 3), 
+                bias=False, 
+                padding=(1, 1),
+            ),
+            torch.nn.BatchNorm2d(128),
+            torch.nn.AvgPool2d((2, 2), stride=2),
+            torch.nn.Conv2d(
+                in_channels=128, 
+                out_channels=256, 
+                kernel_size=(3, 3), 
+                bias=False, 
+                padding=(1, 1)
+            ),
+            torch.nn.BatchNorm2d(256),
+            torch.nn.AvgPool2d((2, 2), stride=2),
+            torch.nn.Conv2d(
+                in_channels=256, 
+                out_channels=256, 
+                kernel_size=(3, 3), 
+                bias=bias, 
+                padding=(1, 1)
+            ),
+            torch.nn.Conv2d(
+                in_channels=256, 
+                out_channels=256, 
+                kernel_size=(3, 3), 
+                bias=False, 
+                padding=(1, 1)
+            ),
+            torch.nn.BatchNorm2d(256),
+            torch.nn.AvgPool2d((2, 2), stride=2),            
+            torch.nn.Conv2d(
+                in_channels=256, 
+                out_channels=12, 
+                kernel_size=(2, 8), 
+                bias=False
+            ),
+            torch.nn.BatchNorm2d(12),
+            torch.nn.AvgPool2d((2, 2), stride=2),
+            torch.nn.Conv2d(
+                in_channels=256, 
+                out_channels=12, 
+                kernel_size=(2, 8), 
+                bias=False
+            ),
+            torch.nn.Sigmoid(),
+            torch.nn.Conv2d(in_channels=12, 
+                out_channels=1, 
+                kernel_size=(1, 1), 
+                bias=False)
+        )    
+
     def expected_input_shape(self) -> torch.Size:
         return torch.Size([2, 128, 512])
 
@@ -364,7 +437,6 @@ class Discriminator(torch.nn.Module):
         expect(256, 2, 8)
 
         # Global average pooling
-
         x = self.conv7(x)
         x = torch.nn.functional.softmax(x, dim=1)
         # x = self.sigmoid(x)
