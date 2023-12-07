@@ -1,10 +1,9 @@
 from pathlib import Path
-from typing import Iterator, Tuple
+from typing import Iterator
 from scipy.io import wavfile
-from dataclasses import dataclass
-from itertools import chain
 import numpy as np
 from util import unwrap
+from copy import deepcopy
 
 
 STANDARD_CATEGORIES = ["chat", "clap", "cym", "kick", "ohat", "other", "snare", "tom"]
@@ -22,9 +21,9 @@ class AudioFile:
     ):
         self.path = path
         self.name = name
-        self.data = data
+        self.data = np.copy(data)
         self.sample_rate = sample_rate
-        self.labels = labels
+        self.labels = deepcopy(labels)
 
     def load_data(self):
         with self.path.open("rb") as fh:
@@ -53,8 +52,14 @@ def file_loader(base_path: str) -> Iterator[AudioFile]:
 def file_storer(base_path: str, file_stream: Iterator[AudioFile]):
     """Consumes the file_stream, writing it to a file"""
     for i, file in enumerate(file_stream):
-        new_path = Path(base_path) / STANDARD_DEST_PATH / f"{file.name}_{i}.wav"
+        tag = "_" + "_".join(file.labels)
+        new_path = Path(base_path) / STANDARD_DEST_PATH / f"{i}_{file.name}{tag}.wav"
         file.store_data(new_path)
+
+
+def label(file: AudioFile, label: str) -> AudioFile:
+    file.labels.append(label)
+    return file
 
 
 def head(file_stream: FileStream):

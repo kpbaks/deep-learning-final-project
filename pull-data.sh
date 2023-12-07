@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# pull an entire dataset from remote to a directory
+
 path=$1; shift
 dataset=$1; shift
 
