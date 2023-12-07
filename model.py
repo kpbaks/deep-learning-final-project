@@ -183,66 +183,10 @@ class Generator(torch.nn.Module):
                     f'expect nr. {num_except_calls}: Expected shape ({batch_size}, {c}, {h}, {w}), got {x.shape = }'
                 )
 
+        expect(latent_vector_size, 1, 1)
         x = self.layers(x)
+        expect(2, 128, 512)
         return x
-
-        # def a(x):
-        #     return self.pixel_norm(self.leaky_relu(x))
-
-        # x = self.conv1(x)
-        # expect(256, 2, 16)
-        # x = a(x)
-
-        # # TODO: maybe use BatchNorm2d like the DC-GAN paper does?
-        # # Upsample to (batch_size, 256, 4, 32)
-        # x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
-        # expect(256, 4, 32)
-
-        # x = self.conv2(x)
-        # expect(256, 4, 32)
-        # x = a(x)
-        # x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
-        # expect(256, 8, 64)
-
-        # x = self.conv3(x)
-        # expect(256, 8, 64)
-        # x = a(x)
-        # x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
-        # expect(256, 16, 128)
-
-        # x = self.conv4(x)
-        # expect(256, 16, 128)
-        # x = a(x)
-        # x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
-        # expect(256, 32, 256)
-
-        # x = self.conv5(x)
-        # expect(128, 32, 256)
-        # x = a(x)
-        # x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
-        # expect(128, 64, 512)
-
-        # x = self.conv6(x)
-        # expect(64, 64, 512)
-        # x = a(x)
-
-        # x = torch.nn.functional.interpolate(x, scale_factor=(2, 1), mode='nearest')
-        # expect(64, 128, 512)
-        # x = self.conv7(x)
-        # expect(32, 128, 512)
-        # x = a(x)
-
-        # x = self.conv8(x)
-        # expect(2, 128, 512)
-        # # TODO: maybe batch normalize the output?
-        # x = torch.nn.functional.tanh(x)
-
-        # # # NOTE: in the GANSynth paper, they say they use "2x2 box upsampling"
-        # # # torch.nn.functional.upsample() or torch.nn.functional.interpolate()?
-
-        # expect(2, 128, 512)
-
-        # return x
 
 
 class Discriminator(torch.nn.Module):
@@ -259,52 +203,71 @@ class Discriminator(torch.nn.Module):
         # TODO: maybe have some dropout layers?
         # TODO: maybe have some normalization layers?
 
-        bias: bool = False
-
-        # TODO: maybe use BatchNorm2d like the DC-GAN paper does?
-
         assert leaky_relu_negative_slope > 0, f'Expected {leaky_relu_negative_slope = } to be > 0'
-        self.leaky_relu = torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope)
 
-        self.conv1 = torch.nn.Conv2d(in_channels=2, out_channels=32, kernel_size=(1, 1), bias=bias)
-        self.pool1 = torch.nn.AvgPool2d((2, 2), stride=2)
+        # # GANSynth does NOT use a fully connected layer at the end, but I do not fully understand how
+        # # they go from the 2x2x256 tensor to a single scalar value.
+        # # WaveGAN uses a fully connected layer at the end, so I will do the same.
 
-        self.conv2 = torch.nn.Conv2d(
-            in_channels=32, out_channels=64, kernel_size=(3, 3), bias=bias, padding=(1, 1)
+        self.layers = torch.nn.Sequential(
+            # (batch_size, 2, 128, 512)
+            torch.nn.Conv2d(
+                in_channels=2,
+                out_channels=32,
+                kernel_size=(1, 1),
+                bias=False,
+            ),
+            torch.nn.BatchNorm2d(32),
+            torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
+            torch.nn.AvgPool2d((2, 2), stride=2),
+            # (batch_size, 32, 64, 256)
+            torch.nn.Conv2d(
+                in_channels=32, out_channels=64, kernel_size=(3, 3), bias=False, padding=(1, 1)
+            ),
+            torch.nn.BatchNorm2d(64),
+            torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
+            torch.nn.AvgPool2d((2, 2), stride=2),
+            # (batch_size, 64, 32, 128)
+            torch.nn.Conv2d(
+                in_channels=64,
+                out_channels=128,
+                kernel_size=(3, 3),
+                bias=False,
+                padding=(1, 1),
+            ),
+            torch.nn.BatchNorm2d(128),
+            torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
+            torch.nn.AvgPool2d((2, 2), stride=2),
+            # (batch_size, 128, 16, 64)
+            torch.nn.Conv2d(
+                in_channels=128, out_channels=256, kernel_size=(3, 3), bias=False, padding=(1, 1)
+            ),
+            torch.nn.BatchNorm2d(256),
+            torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
+            torch.nn.AvgPool2d((2, 2), stride=2),
+            # (batch_size, 256, 8, 32)
+            torch.nn.Conv2d(
+                in_channels=256, out_channels=256, kernel_size=(3, 3), bias=False, padding=(1, 1)
+            ),
+            torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
+            torch.nn.Conv2d(
+                in_channels=256, out_channels=256, kernel_size=(3, 3), bias=False, padding=(1, 1)
+            ),
+            torch.nn.BatchNorm2d(256),
+            torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
+            torch.nn.AvgPool2d((2, 2), stride=2),
+            # (batch_size, 256, 4, 16)
+            torch.nn.Conv2d(
+                in_channels=256, out_channels=12, kernel_size=(3, 3), bias=False, padding=(1, 1)
+            ),
+            torch.nn.BatchNorm2d(12),
+            torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
+            torch.nn.AvgPool2d((2, 2), stride=2),
+            # (batch_size, 12, 2, 4)
+            torch.nn.Conv2d(in_channels=12, out_channels=1, kernel_size=(2, 8), bias=False),
+            # (batch_size, 1, 1, 1)
+            torch.nn.Sigmoid(),
         )
-        self.pool2 = torch.nn.AvgPool2d((2, 2), stride=2)
-
-        self.conv3 = torch.nn.Conv2d(
-            in_channels=64, out_channels=128, kernel_size=(3, 3), bias=bias, padding=(1, 1)
-        )
-        self.pool3 = torch.nn.AvgPool2d((2, 2), stride=2)
-
-        self.conv4 = torch.nn.Conv2d(
-            in_channels=128, out_channels=256, kernel_size=(3, 3), bias=bias, padding=(1, 1)
-        )
-        self.pool4 = torch.nn.AvgPool2d((2, 2), stride=2)
-
-        self.conv5 = torch.nn.Conv2d(
-            in_channels=256, out_channels=256, kernel_size=(3, 3), bias=bias, padding=(1, 1)
-        )
-        self.pool5 = torch.nn.AvgPool2d((2, 2), stride=2)
-
-        self.conv6 = torch.nn.Conv2d(
-            in_channels=256, out_channels=256, kernel_size=(3, 3), bias=bias, padding=(1, 1)
-        )
-        self.pool6 = torch.nn.AvgPool2d((2, 2), stride=2)
-
-        # GANSynth does NOT use a fully connected layer at the end, but I do not fully understand how
-        # they go from the 2x2x256 tensor to a single scalar value.
-        # WaveGAN uses a fully connected layer at the end, so I will do the same.
-        # self.fc1 = torch.nn.Linear(in_features=256 * 2 * 16, out_features=1)
-
-        self.conv7 = torch.nn.Conv2d(
-            in_channels=256, out_channels=12, kernel_size=(2, 8), bias=bias
-        )
-        self.sigmoid = torch.nn.Sigmoid()
-
-        self.conv8 = torch.nn.Conv2d(in_channels=12, out_channels=1, kernel_size=(1, 1), bias=bias)
 
     def expected_input_shape(self) -> torch.Size:
         return torch.Size([2, 128, 512])
@@ -313,6 +276,8 @@ class Discriminator(torch.nn.Module):
         # (batch_size, channels, height, width)
         assert x.ndim == 4, f'Expected 4 dimensions, got {x.ndim = }'
         batch_size: int = x.shape[0]
+
+        # print(f'{x.shape = }')
 
         num_except_calls: int = 0
 
@@ -326,56 +291,8 @@ class Discriminator(torch.nn.Module):
                 )
 
         expect(2, 128, 512)
-
-        x = self.conv1(x)
-        expect(32, 128, 512)
-        x = self.leaky_relu(x)
-        x = self.pool1(x)
-        expect(32, 64, 256)
-
-        x = self.conv2(x)
-        expect(64, 64, 256)
-        x = self.leaky_relu(x)
-        x = self.pool2(x)
-        expect(64, 32, 128)
-
-        x = self.conv3(x)
-        expect(128, 32, 128)
-        x = self.leaky_relu(x)
-        x = self.pool3(x)
-        expect(128, 16, 64)
-
-        x = self.conv4(x)
-        expect(256, 16, 64)
-        x = self.leaky_relu(x)
-        x = self.pool4(x)
-        expect(256, 8, 32)
-
-        x = self.conv5(x)
-        expect(256, 8, 32)
-        x = self.leaky_relu(x)
-        x = self.pool5(x)
-        expect(256, 4, 16)
-
-        x = self.conv6(x)
-        expect(256, 4, 16)
-        x = self.leaky_relu(x)
-        x = self.pool6(x)
-        expect(256, 2, 8)
-
-        # Global average pooling
-
-        x = self.conv7(x)
-        x = torch.nn.functional.softmax(x, dim=1)
-        # x = self.sigmoid(x)
-
-        x = self.conv8(x)
-        # x = x.reshape(batch_size, -1)
-        # print(f"{x.shape = }")
-        # x = self.fc1(x)
-
+        x = self.layers(x)
         expect(1, 1, 1)
-
         return x
 
 
@@ -405,13 +322,7 @@ def main() -> int:
 
     y = g(z)
     logger.info(f'{y.shape = }')
-
-    # Discriminate
-    # (batch_size, width, height, channels)
-    # x = torch.randn(1, 128, 512, 2)
-
     # PyTorch expects (batch_size, channels, width, height)
-    # x = x.permute(0, 3, 1, 2)
     discrimination = d(y.to(device))
     logger.info(f'{discrimination.shape = }')
 
@@ -424,3 +335,6 @@ def main() -> int:
 
 if __name__ == '__main__':
     main()
+
+
+# %%

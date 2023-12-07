@@ -45,3 +45,7 @@ polars = "0.19.16.*"
 pre-commit = "3.5.0.*"
 # pytorch = "2.0.0.*"
 pyfunctional = "1.4.3.*"
+# torchinfo = "1.8.0.*"
+
+[system-requirements]
+linux = "5.4.0"
