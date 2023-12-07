@@ -1,7 +1,6 @@
 #!/usr/bin/env -S pixi run python3
 # %%
 # import os
-from calendar import c
 import random
 import sys
 
@@ -15,7 +14,6 @@ from loguru import logger
 
 from dataset import DrumsDataset
 from model import Discriminator, Generator
-import torchvision.utils as vutils
 
 
 def is_power_of_2(n: int) -> bool:
@@ -38,9 +36,7 @@ def train(
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     _g_optim = torch.optim.Adam(g.parameters(), lr=lr, betas=(0.5, 0.999))
-    _d_optim = torch.optim.SGD(d.parameters(), lr=lr, momentum=0.9)
-    real_label = 1
-    fake_label = 0
+    _d_optim = torch.optim.Adam(d.parameters(), lr=lr, betas=(0.5, 0.999))
 
     _criterion = torch.nn.BCELoss()
 
@@ -49,97 +45,19 @@ def train(
 
     _g_losses: list[float] = []
     _d_losses: list[float] = []
-    img_list = []
-    iters = 0
-    #Visualization of the generator progression
-    fixed_noise = torch.randn(64, 256, 1, 1, device=device)
 
     # TODO: maybe initialize weights here
     # TODO: maybe use custom tqdm progress bar
     for epoch in range(num_epochs):
         for i, data in enumerate(dataloader, 0):
-            #Maximize log(D(x)) + log(1 - D(G(z)))
-            #Train Discriminator with all-real batch
             d.zero_grad()
 
-            real_data = data.to(device)
-            batch_size = real_data.size(0)
-            label = torch.full((batch_size,), real_label, device=device)
-            #Forward pass with real data
-            output_real = d(real_data).view(-1)
-            assert output_real.shape == (batch_size,), f'{output_real.shape = }'
+            data = data.to(device)
+            batch_size = data.size(0)
 
-            
-            #Loss on real data
-            d_err_real = _criterion(output_real, label)
-
-            #gradients for D in backward pass
-            d_err_real.backward()
-            d_x = output_real.mean().item()
-
-            #Train Discriminator with all-fake batch
-            #Generate batch of latent vectors (latent vector size = 256)
-            noise = torch.randn(batch_size, 256, device=device)
-            #Generate fake data batch with Generator
-            fake_data = g(noise)
-            label.fill_(fake_label)
-
-            #Use discriminator to classify all-fake batch
-            output = d(fake_data.detach()).view(-1)
-            d_err_fake = _criterion(output, label)
-
-            #Calculate gardients for D in backward pass
-            d_err_fake.backward()
-            d_g_z1 = output.mean().item()
-
-            d_err = d_err_real + d_err_fake
-            _d_optim.step()
-
-            #Update Generator -> maximize log(D(G(z)))
-            g.zero_grad()
-            label.fill_(real_label) #fake labels are real for the generator
-
-            #Since we just updated D, perform another forward pass of all-fake batch through D
-            output = d(fake_data).view(-1)
-
-            #Calculate generator loss based on new output from discriminator
-
-            g_err = _criterion(output, label)
-            #Backwardspass
-            g_err.backward()
-            d_g_z2 = output.mean().item()
-            #Update Generator
-            _g_optim.step()
-
-            # Output training stats
-            if i % 50 == 0:
-                print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
-                    % (epoch, num_epochs, i, len(dataloader),
-                        d_err.item(), g_err.item(), d_x, d_g_z1, d_g_z2))
-
-            # Save Losses for plotting later
-            _g_losses.append(g_err.item())
-            _g_losses.append(g_err.item())
-
-            # Check how the generator is doing by saving G's output on fixed_noise
-            if (iters % 500 == 0) or ((epoch == num_epochs-1) and (i == len(dataloader)-1)):
-                with torch.no_grad():
-                    fake = g(fixed_noise).detach().cpu()
-                img_list.append(vutils.make_grid(fake, padding=2, normalize=True))
-
-            iters += 1
-
-
-
-
-
-
-
-
-
-
-
-
+            # Train discriminator with real data
+            d_real_decision = d(data).view(-1)
+            assert d_real_decision.shape == (batch_size,), f'{d_real_decision.shape = }'
 
 
 def main() -> int:
