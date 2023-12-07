@@ -41,9 +41,16 @@ class DrumsDataset(torch.utils.data.Dataset):
             raise IndexError(f'index {idx} is out of range')
         sample_rate, data = scipy.io.wavfile.read(self.wav_files[idx])
 
+        print(f'{data.shape =}')
         # Apply Short-Time Fourier Transform (STFT)
-        frequencies, times, Zxx = scipy.signal.stft(data, fs=sample_rate)
+        frequencies, times, Zxx = scipy.signal.stft(
+            data, fs=sample_rate, nfft=256, nperseg=256, noverlap=128, padded=False
+        )
 
+        # Slice Zxx to have shape (128, 512)
+        Zxx = Zxx[:128, :512]
+
+        print(f'{Zxx.shape = }')
         # Get the magnitude of the spectrogram
         magnitude_spectrum = np.abs(Zxx)
         phase_spectrum = np.angle(Zxx)

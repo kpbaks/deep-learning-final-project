@@ -35,19 +35,25 @@ def train(
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-    _g_optim = torch.optim.Adam(g.parameters(), lr=lr, betas=(0.5, 0.999))
-    _d_optim = torch.optim.Adam(d.parameters(), lr=lr, betas=(0.5, 0.999))
+    g_optim = torch.optim.Adam(g.parameters(), lr=lr, betas=(0.5, 0.999))
+    d_optim = torch.optim.Adam(d.parameters(), lr=lr, betas=(0.5, 0.999))
 
-    _criterion = torch.nn.BCELoss()
+    criterion = torch.nn.BCELoss()
 
     g.train()
     d.train()
 
-    _g_losses: list[float] = []
-    _d_losses: list[float] = []
+    g_losses: list[float] = []
+    d_losses: list[float] = []
+
+    # Establish convention for real and fake labels during training
+    real_label: float = 1.0
+    fake_label: float = 0.0
 
     # TODO: maybe initialize weights here
     # TODO: maybe use custom tqdm progress bar
+
+    # Training is split up into two main parts. Part 1 updates the Discriminator and Part 2 updates the Generator.
     for epoch in range(num_epochs):
         for i, data in enumerate(dataloader, 0):
             d.zero_grad()
