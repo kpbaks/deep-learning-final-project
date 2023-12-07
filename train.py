@@ -18,8 +18,6 @@ from loguru import logger
 from dataset import DrumsDataset
 from model import Discriminator, Generator
 
-device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
-
 
 def is_power_of_2(n: int) -> bool:
     """
@@ -31,6 +29,7 @@ def is_power_of_2(n: int) -> bool:
 def train(
     g: Generator,
     d: Discriminator,
+    device: torch.device,
     dataloader: torch.utils.data.DataLoader,
     params: dict,
     # lr: float, #Moved to neptune params
@@ -41,16 +40,19 @@ def train(
         api_token='eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJlNzNkMDgxNS1lOTliLTRjNWQtOGE5Mi1lMDI5NzRkMWFjN2MifQ==',
     )
     run['parameters'] = params
+
     lr = params['lr']
     num_epochs = params['num_epochs']
 
-    assert lr > 0, f'{lr = } must be positive'
-    assert num_epochs > 0, f'{num_epochs = } must be positive'
+    if lr <= 0:
+        raise ValueError(f'{lr = } must be positive')
+    if num_epochs <= 0:
+        raise ValueError(f'{num_epochs = } must be positive')
 
-    for epoch in range(10):
-        run['train/loss'].append(0.9**epoch)
+    # for epoch in range(10):
+    #    run['train/loss'].append(0.9**epoch)
 
-    run['eval/f1_score'] = 0.66
+    # run['eval/f1_score'] = 0.66
 
     g_optim = torch.optim.Adam(g.parameters(), lr=lr, betas=(0.5, 0.999))
     d_optim = torch.optim.SGD(d.parameters(), lr=lr, momentum=0.9)
@@ -70,7 +72,7 @@ def train(
     _img_list = []
     iters = 0
     # Visualization of the generator progression
-    _fixed_noise = torch.randn(64, 256, 1, 1, device=device)
+    _fixed_noise = torch.randn(64, params['latent_sz'] + params['n_classes'], 1, 1, device=device)
 
     # TODO: maybe initialize weights here
     # TODO: maybe use custom tqdm progress bar
@@ -78,7 +80,7 @@ def train(
     # Training is split up into two main parts. Part 1 updates the Discriminator and Part 2 updates the Generator.
     for epoch in range(num_epochs):
         logger.info(f'Epoch {epoch + 1} / {num_epochs + 1}')
-        for i, data in enumerate(dataloader, 0):
+        for i, (data, drum_type) in enumerate(dataloader, 0):
             d.zero_grad()
 
             data = data.to(device)
@@ -93,14 +95,17 @@ def train(
 
             # Loss on real data
             d_err_real = criterion(output_real, label)
-            run['train/d_loss_real'].append(d_err_real)
+            run['train/error/Discriminator_loss_real'].append(d_err_real)
             # gradients for D in backward pass
             d_err_real.backward()
             d_x = output_real.mean().item()
+            run['train/accuracy/Discriminator_accuracy_real'].append(d_x)
 
             # Train Discriminator with all-fake batch
-            # Generate batch of latent vectors (latent vector size = 256)
-            noise = torch.randn(batch_size, 268, 1, 1, device=device)
+            # Generate batch of latent vectors (latent vector size = 260)
+            noise = torch.randn(
+                batch_size, params['latent_sz'] + params['n_classes'], 1, 1, device=device
+            )
             # Generate fake data batch with Generator
             fake_data = g(noise)
             label.fill_(fake_label)
@@ -108,13 +113,17 @@ def train(
             # Use discriminator to classify all-fake batch
             output = d(fake_data.detach()).view(-1)
             d_err_fake = criterion(output, label)
-            run['train/d_loss_fake'].append(d_err_fake)
+            run['train/error/Discriminator_loss_fake'].append(d_err_fake)
 
             # Calculate gardients for D in backward pass
             d_err_fake.backward()
             d_g_z1 = output.mean().item()
+            run['train/accuracy/Discriminator_accuracy_fake'].append(d_g_z1)
 
             d_err = d_err_real + d_err_fake
+            d_acc = (d_x + d_g_z1) / 2
+            run['train/error/Discriminator_loss_total'].append(d_err)
+            run['train/accuracy/Discriminator_accuracy_total'].append(d_acc)
             d_optim.step()
 
             # Update Generator -> maximize log(D(G(z)))
@@ -127,10 +136,11 @@ def train(
             # Calculate generator loss based on new output from discriminator
 
             g_err = criterion(output, label)
-            run['train/g_err'].append(g_err)
+            run['train/error/Generator_error'].append(g_err)
             # Backwardspass
             g_err.backward()
             d_g_z2 = output.mean().item()
+            run['train/accuracy/Generator_accuracy'].append(d_g_z2)
             # Update Generator
             g_optim.step()
 
@@ -165,13 +175,36 @@ def train(
     run.stop()
 
 
+def select_cuda_device_by_memory() -> torch.device:
+    """Select the CUDA device with the most available memory."""
+    # Get all CUDA devices
+    cuda_devices = [torch.device(f'cuda:{i}') for i in range(torch.cuda.device_count())]
+    if len(cuda_devices) == 0:
+        raise RuntimeError('No CUDA devices found')
+
+    device: torch.device | None = None
+    max_memory: int = 2**64 - 1
+
+    # Get the memory usage of each device
+    for cuda_device in cuda_devices:
+        max_memory: int = torch.cuda.get_device_properties(cuda_device).total_memory
+        allocated_memory: int = torch.cuda.memory_allocated(cuda_device)
+        available_memory: int = max_memory - allocated_memory
+        if available_memory > max_memory:
+            max_memory = available_memory
+            device = cuda_device
+
+    assert device is not None
+    return device
+
+
 def main() -> int:
     seed: int = 1234
     random.seed(seed)
     torch.manual_seed(seed)
     torch.use_deterministic_algorithms(True)  # Needed for reproducible results
     logger.info(f'{torch.cuda.is_available() = }')
-    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+    device = select_cuda_device_by_memory() if torch.cuda.is_available() else torch.device('cpu')
     npgu: int = torch.cuda.device_count()
     logger.info(f'{npgu = } {device = }')
     params = {
@@ -182,6 +215,7 @@ def main() -> int:
         'latent_sz': 256,
         'leaky_relu_negative_slope': 0.2,
         'num_epochs': 10,
+        'seed': seed,
     }
 
     g = Generator(params['latent_sz'], params['n_classes'], params['leaky_relu_negative_slope']).to(
@@ -210,7 +244,7 @@ def main() -> int:
     cuda_memory_utilization_percentage: float = available_cuda_memory / max_cuda_memory * 100.0
     logger.info(f'{cuda_memory_utilization_percentage = }%')
 
-    batch_size = 32
+    batch_size = 8
     assert is_power_of_2(batch_size), f'{batch_size = } must be a power of 2'
 
     # generator_stats = torchinfo.summary(g, input_size=(batch_size, 268, 1, 1))
@@ -218,17 +252,17 @@ def main() -> int:
     # logger.info(f'{generator_stats = }')
     # logger.info(f'{discriminator_stats = }')
 
-    sizeof_dataset_sample: int = dataset[0].element_size() * dataset[0].numel()
-    sizeof_batch: int = sizeof_dataset_sample * batch_size
-    sizeof_dataset: int = sizeof_dataset_sample * len(dataset)
-    logger.info(f'{sizeof_dataset_sample = } B {sizeof_batch = } B {sizeof_dataset = } B')
+    # sizeof_dataset_sample: int = dataset[0].element_size() * dataset[0].numel()
+    # sizeof_batch: int = sizeof_dataset_sample * batch_size
+    # sizeof_dataset: int = sizeof_dataset_sample * len(dataset)
+    # logger.info(f'{sizeof_dataset_sample = } B {sizeof_batch = } B {sizeof_dataset = } B')
 
     dataloader = torch.utils.data.DataLoader(
         dataset, batch_size=batch_size, shuffle=True, num_workers=2
     )
     # logger.info(f'{generator_stats.total_params = }')
 
-    train(g, d, dataloader, params)
+    train(g, d, device, dataloader, params)
     return 0
 
 

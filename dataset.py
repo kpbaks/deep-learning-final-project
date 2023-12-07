@@ -88,7 +88,7 @@ class DrumsDataset(torch.utils.data.Dataset):
         # Convert to torch tensor
         spectrogram = torch.from_numpy(spectrogram)
 
-        return spectrogram
+        return spectrogram, 'drum_type'
 
 
 def main(dataset_dir: Path) -> int:
@@ -122,7 +122,7 @@ def main(dataset_dir: Path) -> int:
 
     # Get a random sample
     idx = random.randint(0, len(dataset))
-    spectrogram = dataset[idx]
+    spectrogram = dataset[idx][0]
     # logger.info(f'{spectrogram.shape = }')
 
     # Plot the spectrogram
@@ -147,3 +147,5 @@ if __name__ == '__main__':
     dataset_dir = Path.home() / 'datasets' / 'classic_clean' / 'train'
     # print([i for i in range(2**10) if is_power_of_2(i)])
     sys.exit(main(dataset_dir))
+
+# %%
