@@ -94,3 +94,5 @@ plt.figure(figsize=(10, 4))
 librosa.display.specshow(phase, y_axis='linear', fmax=8000, x_axis='time')
 
 plt.colorbar(format='%+2.0f dB')
+
+# %%

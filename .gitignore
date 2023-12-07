@@ -167,3 +167,6 @@ _temp/
 *.wav
 *.log
 *.png
+
+runs/
+.neptune/

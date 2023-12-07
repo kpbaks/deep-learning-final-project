@@ -1,12 +1,19 @@
 #!/usr/bin/env -S pixi run python3 -O
 # %%
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import scipy
 import torch
 from sklearn.preprocessing import MinMaxScaler
+
+
+@dataclass
+class Metadata:
+    id: int
+    drum_type: str
 
 
 def is_power_of_2(n: int) -> bool:
@@ -26,11 +33,22 @@ class DrumsDataset(torch.utils.data.Dataset):
         :param dataset_dir: Path to the dataset directory
         """
         self.dataset_dir = dataset_dir
-        assert dataset_dir.exists(), f'{dataset_dir} does not exist'
-        assert dataset_dir.is_dir(), f'{dataset_dir} is not a directory'
+        if not dataset_dir.exists():
+            raise ValueError(f'{dataset_dir} does not exist')
+        if not dataset_dir.is_dir():
+            raise ValueError(f'{dataset_dir} is not a directory')
 
         self.wav_files = list(dataset_dir.glob('*.wav'))
+        if len(self.wav_files) == 0:
+            raise ValueError(f'{dataset_dir = } does not contain any WAV files')
+
         self.scaler = MinMaxScaler()
+
+    @staticmethod
+    def parse_filename(filename: Path) -> Metadata:
+        id, drum_type = filename.stem.split('_')
+        id = int(id)
+        return Metadata(id=id, drum_type=drum_type)
 
     def __len__(self) -> int:
         return len(self.wav_files)
@@ -39,6 +57,9 @@ class DrumsDataset(torch.utils.data.Dataset):
         # Load audio file
         if not 0 <= idx < len(self):
             raise IndexError(f'index {idx} is out of range')
+
+        _metadata = self.parse_filename(self.wav_files[idx])
+
         sample_rate, data = scipy.io.wavfile.read(self.wav_files[idx])
 
         # print(f'{data.shape =}')
@@ -74,10 +95,11 @@ def main(dataset_dir: Path) -> int:
     # import argparse
     # import os
     import random
-    # import sys
 
-    from loguru import logger
     import matplotlib.pyplot as plt
+
+    # import sys
+    from loguru import logger
 
     # def parse_argv(argv: list[str]) -> argparse.Namespace:
     #     prog: str = os.path.basename(__file__)
@@ -122,6 +144,6 @@ def main(dataset_dir: Path) -> int:
 if __name__ == '__main__':
     import sys
 
-    dataset_dir = Path.home() / 'datasets' / 'classic_clean'
+    dataset_dir = Path.home() / 'datasets' / 'classic_clean' / 'train'
     # print([i for i in range(2**10) if is_power_of_2(i)])
     sys.exit(main(dataset_dir))

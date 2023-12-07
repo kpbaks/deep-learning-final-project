@@ -9,6 +9,9 @@ from pathlib import Path
 from loguru import logger
 from sklearn.preprocessing import MinMaxScaler
 
+# import numpy as np
+from scipy.signal import butter, sosfilt
+
 
 DATASET_DIR = Path.home() / 'datasets' / 'classic_clean'
 wav_files = list(DATASET_DIR.glob('*.wav'))
@@ -41,8 +44,6 @@ logger.info(f'{max(frequencies) = }')
 
 # %%
 
-import numpy as np
-from scipy.signal import stft, butter, sosfilt
 
 DATASET_DIR = Path.home() / 'datasets' / 'classic_clean'
 wav_files = list(DATASET_DIR.glob('*.wav'))
@@ -85,3 +86,5 @@ plt.title('Normalized Log Spectrogram')
 plt.ylabel('Frequency [Hz]')
 plt.xlabel('Time [sec]')
 plt.show()
+
+# %%

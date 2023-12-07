@@ -48,14 +48,16 @@ class Generator(torch.nn.Module):
     ) -> None:
         super(Generator, self).__init__()
 
-        assert latent_size > 0, f'Expected {latent_size = } to be > 0'
-        assert label_conditioning_size > 0, f'Expected {label_conditioning_size = } to be > 0'
+        if latent_size <= 0:
+            raise ValueError(f'Expected {latent_size = } to be > 0')
         self.latent_size = latent_size
+        if label_conditioning_size <= 0:
+            raise ValueError(f'Expected {label_conditioning_size = } to be > 0')
         self.label_conditioning_size = label_conditioning_size
-        assert leaky_relu_negative_slope > 0, f'Expected {leaky_relu_negative_slope = } to be > 0'
+        if leaky_relu_negative_slope <= 0:
+            raise ValueError(f'Expected {leaky_relu_negative_slope = } to be > 0')
 
         # TODO: maybe use embedding layer for pitch conditioning?
-        # self.leaky_relu = torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope)
         # self.pixel_norm = PixelNorm()
 
         self.layers = torch.nn.Sequential(
@@ -136,37 +138,12 @@ class Generator(torch.nn.Module):
             # (batch_size, 2, 128, 512)
         )
 
-        # (batch_size, latent_size + label_conditioning_size, 1, 1)
-        # to (batch_size, 256, 2, 16)
-
-        # self.conv1 = torch.nn.ConvTranspose2d(
-        #     in_channels=latent_size + label_conditioning_size,
-        #     out_channels=256,
-        #     kernel_size=(2, 16),
-        #     bias=False,
-        # )
-
-        # # self.conv2 = torch.nn.ConvTranspose2d(256, 256, kernel_size=(3, 3), padding="same", bias=False)
-        # # TODO: maybe use ConvTranspose2d instead of interpolate()?
-        # self.conv2 = torch.nn.Conv2d(256, 256, kernel_size=(3, 3), padding='same', bias=False)
-
-        # self.conv3 = torch.nn.Conv2d(256, 256, kernel_size=(3, 3), padding='same', bias=False)
-
-        # self.conv4 = torch.nn.Conv2d(256, 256, kernel_size=(3, 3), padding='same', bias=False)
-
-        # self.conv5 = torch.nn.Conv2d(256, 128, kernel_size=(3, 3), padding='same', bias=False)
-
-        # self.conv6 = torch.nn.Conv2d(128, 64, kernel_size=(3, 3), padding='same', bias=False)
-
-        # self.conv7 = torch.nn.Conv2d(64, 32, kernel_size=(3, 3), padding='same', bias=False)
-
-        # self.conv8 = torch.nn.Conv2d(32, 2, kernel_size=(1, 1), padding='same', bias=False)
-
     def expected_input_shape(self) -> torch.Size:
         return torch.Size([self.latent_size + self.label_conditioning_size, 1, 1])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        assert x.ndim == 4, f'Expected 2 dimensions, got {x.ndim = }'
+        if x.ndim != 4:
+            raise ValueError(f'Expected 4 dimensions, got {x.ndim = }')
         batch_size: int = x.shape[0]
         latent_vector_size: int = x.shape[1]
         assert (
@@ -274,10 +251,9 @@ class Discriminator(torch.nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # (batch_size, channels, height, width)
-        assert x.ndim == 4, f'Expected 4 dimensions, got {x.ndim = }'
+        if x.ndim != 4:
+            raise ValueError(f'Expected 4 dimensions, got {x.ndim = }')
         batch_size: int = x.shape[0]
-
-        # print(f'{x.shape = }')
 
         num_except_calls: int = 0
 

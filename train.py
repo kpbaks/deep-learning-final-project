@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 import torch
+import neptune
 
 # import torchinfo
 from loguru import logger
@@ -31,14 +32,28 @@ def train(
     g: Generator,
     d: Discriminator,
     dataloader: torch.utils.data.DataLoader,
-    lr: float,
-    num_epochs: int,
+    params: dict,
+    # lr: float, #Moved to neptune params
+    # num_epochs: int, #Moved to neptune params
 ) -> None:
+    run = neptune.init_run(
+        project='jenner/deep-learning-final-project',
+        api_token='eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJlNzNkMDgxNS1lOTliLTRjNWQtOGE5Mi1lMDI5NzRkMWFjN2MifQ==',
+    )
+    run['parameters'] = params
+    lr = params['lr']
+    num_epochs = params['num_epochs']
+
     assert lr > 0, f'{lr = } must be positive'
     assert num_epochs > 0, f'{num_epochs = } must be positive'
 
+    for epoch in range(10):
+        run['train/loss'].append(0.9**epoch)
+
+    run['eval/f1_score'] = 0.66
+
     g_optim = torch.optim.Adam(g.parameters(), lr=lr, betas=(0.5, 0.999))
-    d_optim = torch.optim.Adam(d.parameters(), lr=lr, betas=(0.5, 0.999))
+    d_optim = torch.optim.SGD(d.parameters(), lr=lr, momentum=0.9)
 
     criterion = torch.nn.BCELoss()
 
@@ -78,7 +93,7 @@ def train(
 
             # Loss on real data
             d_err_real = criterion(output_real, label)
-
+            run['train/d_loss_real'].append(d_err_real)
             # gradients for D in backward pass
             d_err_real.backward()
             d_x = output_real.mean().item()
@@ -93,6 +108,7 @@ def train(
             # Use discriminator to classify all-fake batch
             output = d(fake_data.detach()).view(-1)
             d_err_fake = criterion(output, label)
+            run['train/d_loss_fake'].append(d_err_fake)
 
             # Calculate gardients for D in backward pass
             d_err_fake.backward()
@@ -111,6 +127,7 @@ def train(
             # Calculate generator loss based on new output from discriminator
 
             g_err = criterion(output, label)
+            run['train/g_err'].append(g_err)
             # Backwardspass
             g_err.backward()
             d_g_z2 = output.mean().item()
@@ -145,6 +162,7 @@ def train(
             # img_list.append(vutils.make_grid(fake, padding=2, normalize=True))
 
             iters += 1
+    run.stop()
 
 
 def main() -> int:
@@ -156,13 +174,21 @@ def main() -> int:
     device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
     npgu: int = torch.cuda.device_count()
     logger.info(f'{npgu = } {device = }')
+    params = {
+        'lr': 0.0002,
+        'bs': 32,
+        'input_sz': 2 * 128 * 512,
+        'n_classes': 4,
+        'latent_sz': 256,
+        'leaky_relu_negative_slope': 0.2,
+        'num_epochs': 10,
+    }
 
-    latent_size: int = 256
-    pitch_conditioning_size: int = 3 * 4
+    g = Generator(params['latent_sz'], params['n_classes'], params['leaky_relu_negative_slope']).to(
+        device
+    )
 
-    g = Generator(latent_size, pitch_conditioning_size, leaky_relu_negative_slope=0.2).to(device)
-
-    d = Discriminator(leaky_relu_negative_slope=0.2).to(device)
+    d = Discriminator(params['leaky_relu_negative_slope']).to(device)
 
     # if (device.type == 'cuda') and (npgu > 1):
     #     logger.info(f'Using {npgu} GPUs')
@@ -202,8 +228,7 @@ def main() -> int:
     )
     # logger.info(f'{generator_stats.total_params = }')
 
-    train(g, d, dataloader, lr=0.0002, num_epochs=10)
-
+    train(g, d, dataloader, params)
     return 0
 
 
