@@ -1,4 +1,4 @@
-version: 2
+version: 3
 metadata:
   content_hash:
     linux-64: 7c88dd0bdc41ab8a30d727bc45cae0378dc2e73e734b0aa6e4b100cbb13940e7
@@ -7929,6 +7929,27 @@ package:
   noarch: python
   size: 37132
   timestamp: 1700046842169
+- platform: linux-64
+  name: torchinfo
+  version: 1.8.0
+  category: main
+  manager: conda
+  dependencies:
+  - python >=3.6
+  - pytorch >=1.6
+  url: https://conda.anaconda.org/conda-forge/noarch/torchinfo-1.8.0-pyhd8ed1ab_0.conda
+  hash:
+    md5: fba98fc95a945e2a6b93a77b39dd52dc
+    sha256: d0bc28b016099ef7c6a1edfd8eac54e991da167de1dff9f03da96af4fa95cc11
+  build: pyhd8ed1ab_0
+  arch: x86_64
+  subdir: linux-64
+  build_number: 0
+  license: MIT
+  license_family: MIT
+  noarch: python
+  size: 25119
+  timestamp: 1684097313509
 - platform: linux-64
   name: torchvision
   version: 0.15.2

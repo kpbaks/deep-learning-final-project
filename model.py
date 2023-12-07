@@ -277,7 +277,7 @@ class Discriminator(torch.nn.Module):
         assert x.ndim == 4, f'Expected 4 dimensions, got {x.ndim = }'
         batch_size: int = x.shape[0]
 
-        print(f'{x.shape = }')
+        # print(f'{x.shape = }')
 
         num_except_calls: int = 0
 

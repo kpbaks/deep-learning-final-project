@@ -41,7 +41,7 @@ class DrumsDataset(torch.utils.data.Dataset):
             raise IndexError(f'index {idx} is out of range')
         sample_rate, data = scipy.io.wavfile.read(self.wav_files[idx])
 
-        print(f'{data.shape =}')
+        # print(f'{data.shape =}')
         # Apply Short-Time Fourier Transform (STFT)
         frequencies, times, Zxx = scipy.signal.stft(
             data, fs=sample_rate, nfft=256, nperseg=256, noverlap=128, padded=False
@@ -50,7 +50,7 @@ class DrumsDataset(torch.utils.data.Dataset):
         # Slice Zxx to have shape (128, 512)
         Zxx = Zxx[:128, :512]
 
-        print(f'{Zxx.shape = }')
+        # print(f'{Zxx.shape = }')
         # Get the magnitude of the spectrogram
         magnitude_spectrum = np.abs(Zxx)
         phase_spectrum = np.angle(Zxx)
@@ -96,12 +96,12 @@ def main(dataset_dir: Path) -> int:
     assert dataset_dir.exists(), f'{dataset_dir} does not exist'
     assert dataset_dir.is_dir(), f'{dataset_dir} is not a directory'
     dataset = DrumsDataset(dataset_dir)
-    logger.info(f'{len(dataset) = }')
+    # logger.info(f'{len(dataset) = }')
 
     # Get a random sample
     idx = random.randint(0, len(dataset))
     spectrogram = dataset[idx]
-    logger.info(f'{spectrogram.shape = }')
+    # logger.info(f'{spectrogram.shape = }')
 
     # Plot the spectrogram
     logger.info(f'plotting spectrogram of sample {idx = }')
