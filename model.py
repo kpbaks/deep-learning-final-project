@@ -346,7 +346,7 @@ class Discriminator(torch.nn.Module):
                 in_channels=256, 
                 out_channels=256, 
                 kernel_size=(3, 3), 
-                bias=bias, 
+                bias=False, 
                 padding=(1, 1)
             ),
             torch.nn.Conv2d(
@@ -397,10 +397,8 @@ class Discriminator(torch.nn.Module):
                 raise ValueError(
                     f'expect nr. {num_except_calls}: Expected shape ({batch_size}, {c}, {h}, {w}), got {x.shape = }'
                 )
-
         expect(2, 128, 512)
-
-        x = self.conv1(x)
+    """     x = self.conv1(x)
         expect(32, 128, 512)
         x = self.leaky_relu(x)
         x = self.pool1(x)
@@ -446,8 +444,9 @@ class Discriminator(torch.nn.Module):
         # print(f"{x.shape = }")
         # x = self.fc1(x)
 
+        expect(1, 1, 1) """
+        x = self.layers(x)
         expect(1, 1, 1)
-
         return x
 
 
