@@ -44,54 +44,134 @@ class Generator(torch.nn.Module):
     """
 
     def __init__(
-        self, latent_size: int, pitch_conditioning_size: int, leaky_relu_negative_slope: float
+        self, latent_size: int, label_conditioning_size: int, leaky_relu_negative_slope: float
     ) -> None:
         super(Generator, self).__init__()
 
         assert latent_size > 0, f'Expected {latent_size = } to be > 0'
-        assert pitch_conditioning_size > 0, f'Expected {pitch_conditioning_size = } to be > 0'
+        assert label_conditioning_size > 0, f'Expected {label_conditioning_size = } to be > 0'
         self.latent_size = latent_size
-        self.pitch_conditioning_size = pitch_conditioning_size
+        self.label_conditioning_size = label_conditioning_size
         assert leaky_relu_negative_slope > 0, f'Expected {leaky_relu_negative_slope = } to be > 0'
 
-        self.leaky_relu = torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope)
-        self.pixel_norm = PixelNorm()
+        # TODO: maybe use embedding layer for pitch conditioning?
+        # self.leaky_relu = torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope)
+        # self.pixel_norm = PixelNorm()
 
-        # (batch_size, latent_size + pitch_conditioning_size, 1, 1)
-        # to (batch_size, 256, 2, 16)
-
-        self.conv1 = torch.nn.ConvTranspose2d(
-            in_channels=latent_size + pitch_conditioning_size,
-            out_channels=256,
-            kernel_size=(2, 16),
-            bias=False,
+        self.layers = torch.nn.Sequential(
+            # (batch_size, latent_size + label_conditioning_size, 1, 1)
+            torch.nn.ConvTranspose2d(
+                in_channels=latent_size + label_conditioning_size,
+                out_channels=256,
+                kernel_size=(4, 16),
+                bias=False,
+            ),
+            torch.nn.BatchNorm2d(256),
+            torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
+            # (batch_size, 256, 4, 16)
+            torch.nn.ConvTranspose2d(
+                in_channels=256,
+                out_channels=256,
+                kernel_size=2,
+                stride=2,
+                padding=0,
+                bias=False,
+            ),
+            torch.nn.BatchNorm2d(256),
+            torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
+            # (batch_size, 256, 8, 32)
+            torch.nn.ConvTranspose2d(
+                in_channels=256,
+                out_channels=256,
+                kernel_size=2,
+                stride=2,
+                padding=0,
+                bias=False,
+            ),
+            torch.nn.BatchNorm2d(256),
+            torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
+            # # (batch_size, 128, 16, 64)
+            torch.nn.ConvTranspose2d(
+                in_channels=256,
+                out_channels=128,
+                kernel_size=2,
+                stride=2,
+                padding=0,
+                bias=False,
+            ),
+            torch.nn.BatchNorm2d(128),
+            torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
+            # # (batch_size, 64, 32, 128)
+            torch.nn.ConvTranspose2d(
+                in_channels=128,
+                out_channels=64,
+                kernel_size=2,
+                stride=2,
+                padding=0,
+                bias=False,
+            ),
+            torch.nn.BatchNorm2d(64),
+            torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
+            # # (batch_size, 32, 64, 256)
+            torch.nn.ConvTranspose2d(
+                in_channels=64,
+                out_channels=32,
+                kernel_size=2,
+                stride=2,
+                padding=0,
+                bias=False,
+            ),
+            torch.nn.BatchNorm2d(32),
+            torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
+            # (batch_size, 16, 128, 512)
+            torch.nn.ConvTranspose2d(
+                in_channels=32,
+                out_channels=2,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+                bias=False,
+            ),
+            torch.nn.Tanh(),
+            # (batch_size, 2, 128, 512)
         )
 
-        # self.conv2 = torch.nn.ConvTranspose2d(256, 256, kernel_size=(3, 3), padding="same", bias=False)
-        self.conv2 = torch.nn.Conv2d(256, 256, kernel_size=(3, 3), padding='same', bias=False)
+        # (batch_size, latent_size + label_conditioning_size, 1, 1)
+        # to (batch_size, 256, 2, 16)
 
-        self.conv3 = torch.nn.Conv2d(256, 256, kernel_size=(3, 3), padding='same', bias=False)
+        # self.conv1 = torch.nn.ConvTranspose2d(
+        #     in_channels=latent_size + label_conditioning_size,
+        #     out_channels=256,
+        #     kernel_size=(2, 16),
+        #     bias=False,
+        # )
 
-        self.conv4 = torch.nn.Conv2d(256, 256, kernel_size=(3, 3), padding='same', bias=False)
+        # # self.conv2 = torch.nn.ConvTranspose2d(256, 256, kernel_size=(3, 3), padding="same", bias=False)
+        # # TODO: maybe use ConvTranspose2d instead of interpolate()?
+        # self.conv2 = torch.nn.Conv2d(256, 256, kernel_size=(3, 3), padding='same', bias=False)
 
-        self.conv5 = torch.nn.Conv2d(256, 128, kernel_size=(3, 3), padding='same', bias=False)
+        # self.conv3 = torch.nn.Conv2d(256, 256, kernel_size=(3, 3), padding='same', bias=False)
 
-        self.conv6 = torch.nn.Conv2d(128, 64, kernel_size=(3, 3), padding='same', bias=False)
+        # self.conv4 = torch.nn.Conv2d(256, 256, kernel_size=(3, 3), padding='same', bias=False)
 
-        self.conv7 = torch.nn.Conv2d(64, 32, kernel_size=(3, 3), padding='same', bias=False)
+        # self.conv5 = torch.nn.Conv2d(256, 128, kernel_size=(3, 3), padding='same', bias=False)
 
-        self.conv8 = torch.nn.Conv2d(32, 2, kernel_size=(1, 1), padding='same', bias=False)
+        # self.conv6 = torch.nn.Conv2d(128, 64, kernel_size=(3, 3), padding='same', bias=False)
+
+        # self.conv7 = torch.nn.Conv2d(64, 32, kernel_size=(3, 3), padding='same', bias=False)
+
+        # self.conv8 = torch.nn.Conv2d(32, 2, kernel_size=(1, 1), padding='same', bias=False)
 
     def expected_input_shape(self) -> torch.Size:
-        return torch.Size([1, self.latent_size + self.pitch_conditioning_size, 1, 1])
+        return torch.Size([self.latent_size + self.label_conditioning_size, 1, 1])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert x.ndim == 4, f'Expected 2 dimensions, got {x.ndim = }'
         batch_size: int = x.shape[0]
         latent_vector_size: int = x.shape[1]
         assert (
-            latent_vector_size == self.latent_size + self.pitch_conditioning_size
-        ), f'Expected {latent_vector_size = } to be {self.latent_size + self.pitch_conditioning_size = }'
+            latent_vector_size == self.latent_size + self.label_conditioning_size
+        ), f'Expected {latent_vector_size = } to be {self.latent_size + self.label_conditioning_size = }'
         num_except_calls: int = 0
 
         def expect(c: int, h: int, w: int) -> None:
@@ -103,62 +183,66 @@ class Generator(torch.nn.Module):
                     f'expect nr. {num_except_calls}: Expected shape ({batch_size}, {c}, {h}, {w}), got {x.shape = }'
                 )
 
-        def a(x):
-            return self.pixel_norm(self.leaky_relu(x))
-
-        x = self.conv1(x)
-        expect(256, 2, 16)
-        x = a(x)
-
-        # Upsample to (batch_size, 256, 4, 32)
-        x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
-        expect(256, 4, 32)
-
-        x = self.conv2(x)
-        expect(256, 4, 32)
-        x = a(x)
-        x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
-        expect(256, 8, 64)
-
-        x = self.conv3(x)
-        expect(256, 8, 64)
-        x = a(x)
-        x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
-        expect(256, 16, 128)
-
-        x = self.conv4(x)
-        expect(256, 16, 128)
-        x = a(x)
-        x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
-        expect(256, 32, 256)
-
-        x = self.conv5(x)
-        expect(128, 32, 256)
-        x = a(x)
-        x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
-        expect(128, 64, 512)
-
-        x = self.conv6(x)
-        expect(64, 64, 512)
-        x = a(x)
-
-        x = torch.nn.functional.interpolate(x, scale_factor=(2, 1), mode='nearest')
-        expect(64, 128, 512)
-        x = self.conv7(x)
-        expect(32, 128, 512)
-        x = a(x)
-
-        x = self.conv8(x)
-        expect(2, 128, 512)
-        # TODO: maybe batch normalize the output?
-        x = torch.nn.functional.tanh(x)
-
-        # # NOTE: in the GANSynth paper, they say they use "2x2 box upsampling"
-        # # torch.nn.functional.upsample() or torch.nn.functional.interpolate()?
-
-        expect(2, 128, 512)
-
+        x = self.layers(x)
         return x
+
+        # def a(x):
+        #     return self.pixel_norm(self.leaky_relu(x))
+
+        # x = self.conv1(x)
+        # expect(256, 2, 16)
+        # x = a(x)
+
+        # # TODO: maybe use BatchNorm2d like the DC-GAN paper does?
+        # # Upsample to (batch_size, 256, 4, 32)
+        # x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
+        # expect(256, 4, 32)
+
+        # x = self.conv2(x)
+        # expect(256, 4, 32)
+        # x = a(x)
+        # x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
+        # expect(256, 8, 64)
+
+        # x = self.conv3(x)
+        # expect(256, 8, 64)
+        # x = a(x)
+        # x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
+        # expect(256, 16, 128)
+
+        # x = self.conv4(x)
+        # expect(256, 16, 128)
+        # x = a(x)
+        # x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
+        # expect(256, 32, 256)
+
+        # x = self.conv5(x)
+        # expect(128, 32, 256)
+        # x = a(x)
+        # x = torch.nn.functional.interpolate(x, scale_factor=(2, 2), mode='nearest')
+        # expect(128, 64, 512)
+
+        # x = self.conv6(x)
+        # expect(64, 64, 512)
+        # x = a(x)
+
+        # x = torch.nn.functional.interpolate(x, scale_factor=(2, 1), mode='nearest')
+        # expect(64, 128, 512)
+        # x = self.conv7(x)
+        # expect(32, 128, 512)
+        # x = a(x)
+
+        # x = self.conv8(x)
+        # expect(2, 128, 512)
+        # # TODO: maybe batch normalize the output?
+        # x = torch.nn.functional.tanh(x)
+
+        # # # NOTE: in the GANSynth paper, they say they use "2x2 box upsampling"
+        # # # torch.nn.functional.upsample() or torch.nn.functional.interpolate()?
+
+        # expect(2, 128, 512)
+
+        # return x
 
 
 class Discriminator(torch.nn.Module):
@@ -176,6 +260,8 @@ class Discriminator(torch.nn.Module):
         # TODO: maybe have some normalization layers?
 
         bias: bool = False
+
+        # TODO: maybe use BatchNorm2d like the DC-GAN paper does?
 
         assert leaky_relu_negative_slope > 0, f'Expected {leaky_relu_negative_slope = } to be > 0'
         self.leaky_relu = torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope)
@@ -337,10 +423,4 @@ def main() -> int:
 
 
 if __name__ == '__main__':
-    # pass
-    # import sys
     main()
-    # x = torch.randn(3, 3, names=('N', 'C'))
-    # print(f"{x.names = }")
-
-    # sys.exit(main())
