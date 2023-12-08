@@ -16,7 +16,7 @@ class Metadata:
     drum_type: str
 
 
-DATASET_DIR = Path.home() / 'datasets' / 'classic_clean'
+DATASET_DIR = Path.home() / 'datasets' / 'y2k-core'
 assert DATASET_DIR.exists(), f'{DATASET_DIR} does not exist'
 
 TRAIN_DIR = DATASET_DIR / 'train'
@@ -62,7 +62,9 @@ logger.info(f'{len(wav_files) = }')
 
 
 def parse_filename(filename: Path) -> Metadata:
-    id, drum_type = filename.stem.split('_')
+    tags = filename.stem.split('_')
+    id = tags[0]
+    drum_type = tags[1]
     return Metadata(id=int(id), drum_type=drum_type)
 
 
@@ -95,9 +97,10 @@ def test_split_contains_all_drum_types(split: list[Path]) -> bool:
 # 75% train, 12.5% test, 12.5% validation
 
 
-train_size: int = math.floor(len(wav_files) * 0.75)
-test_size: int = math.ceil(len(wav_files) * 0.125)
-val_size: int = math.ceil(len(wav_files) * 0.125)
+total_size: int = len(wav_files)
+train_size: int = math.floor(total_size * 0.75)
+test_size: int = math.floor(total_size * 0.125)
+val_size: int = total_size - train_size - test_size
 
 assert train_size + test_size + val_size == len(
     wav_files
