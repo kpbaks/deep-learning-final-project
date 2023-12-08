@@ -1,14 +1,10 @@
 #!/usr/bin/env -S pixi run python3
 # %%
-# import os
-import time
+import argparse
 import random
 import sys
-import argparse
-
-# from torchvision import utils as vutils
-# import sys
-# from dataclasses import asdict, astuple, dataclass
+import time
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import neptune
@@ -28,6 +24,36 @@ from dataset import DrumsDataset
 from model import Discriminator, Generator
 
 
+@dataclass
+class Params:
+    lr: float
+    batch_size: int
+    input_sz: int
+    n_classes: int
+    latent_sz: int
+    leaky_relu_negative_slope: float
+    num_epochs: int
+    seed: int
+
+    def __post_init__(self) -> None:
+        if self.lr <= 0:
+            raise ValueError(f'{self.lr = } must be positive')
+        if self.batch_size <= 0:
+            raise ValueError(f'{self.batch_size = } must be positive')
+        if not is_power_of_2(self.batch_size):
+            raise ValueError(f'{self.batch_size = } must be a power of 2')
+        if self.input_sz <= 0:
+            raise ValueError(f'{self.input_sz = } must be positive')
+        if self.n_classes <= 0:
+            raise ValueError(f'{self.n_classes = } must be positive')
+        if self.latent_sz <= 0:
+            raise ValueError(f'{self.latent_sz = } must be positive')
+        if self.num_epochs <= 0:
+            raise ValueError(f'{self.num_epochs = } must be positive')
+        if self.seed <= 0:
+            raise ValueError(f'{self.seed = } must be positive')
+
+
 def is_power_of_2(n: int) -> bool:
     """
     Check if a number is a power of 2.
@@ -40,18 +66,16 @@ def train(
     d: Discriminator,
     device: torch.device,
     dataloader: torch.utils.data.DataLoader,
-    params: dict,
-    # lr: float, #Moved to neptune params
-    # num_epochs: int, #Moved to neptune params
+    params: Params,
 ) -> None:
     run = neptune.init_run(
         project='jenner/deep-learning-final-project',
         api_token='eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJlNzNkMDgxNS1lOTliLTRjNWQtOGE5Mi1lMDI5NzRkMWFjN2MifQ==',
     )
-    run['parameters'] = params
+    run['parameters'] = asdict(params)
 
-    lr = params['lr']
-    num_epochs = params['num_epochs']
+    lr = params.lr
+    num_epochs = params.num_epochs
 
     if lr <= 0:
         raise ValueError(f'{lr = } must be positive')
@@ -81,7 +105,7 @@ def train(
     _img_list = []
     iters = 0
     # Visualization of the generator progression
-    _fixed_noise = torch.randn(64, params['latent_sz'] + params['n_classes'], 1, 1, device=device)
+    _fixed_noise = torch.randn(64, params.latent_sz + params.n_classes, 1, 1, device=device)
 
     # TODO: maybe initialize weights here
     # TODO: maybe use custom tqdm progress bar
@@ -114,7 +138,7 @@ def train(
             # Train Discriminator with all-fake batch
             # Generate batch of latent vectors (latent vector size = 260)
             noise = torch.randn(
-                batch_size, params['latent_sz'] + params['n_classes'], 1, 1, device=device
+                batch_size, params.latent_sz + params.n_classes, 1, 1, device=device
             )
             # Generate fake data batch with Generator
             fake_data = g(noise)
@@ -236,16 +260,16 @@ def main() -> int:
     if not is_power_of_2(args.batch_size):
         raise ValueError(f'{args.batch_size = } must be a power of 2')
 
-    params = {
-        'lr': args.lr,
-        'batch_size': args.batch_size,
-        'input_sz': 2 * 128 * 512,
-        'n_classes': 4,
-        'latent_sz': 256,
-        'leaky_relu_negative_slope': 0.2,
-        'num_epochs': args.epochs,
-        'seed': args.seed,
-    }
+    params = Params(
+        lr=args.lr,
+        batch_size=args.batch_size,
+        input_sz=2 * 128 * 512,
+        n_classes=4,
+        latent_sz=256,
+        leaky_relu_negative_slope=0.2,
+        num_epochs=args.epochs,
+        seed=args.seed,
+    )
 
     print(f'{params = }')
 
@@ -258,11 +282,9 @@ def main() -> int:
     npgu: int = torch.cuda.device_count()
     logger.info(f'{npgu = } {device = }')
 
-    g = Generator(params['latent_sz'], params['n_classes'], params['leaky_relu_negative_slope']).to(
-        device
-    )
+    g = Generator(params.latent_sz, params.n_classes, params.leaky_relu_negative_slope).to(device)
 
-    d = Discriminator(params['leaky_relu_negative_slope']).to(device)
+    d = Discriminator(params.leaky_relu_negative_slope).to(device)
 
     logger.debug(f'{g = }')
     logger.debug(f'{d = }')
@@ -290,7 +312,7 @@ def main() -> int:
     # logger.info(f'{sizeof_dataset_sample = } B {sizeof_batch = } B {sizeof_dataset = } B')
 
     dataloader = torch.utils.data.DataLoader(
-        dataset, batch_size=params['batch_size'], shuffle=True, num_workers=2
+        dataset, batch_size=params.batch_size, shuffle=True, num_workers=2
     )
 
     train(g, d, device, dataloader, params)
