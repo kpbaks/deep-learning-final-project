@@ -52,6 +52,23 @@ class DrumsDataset(torch.utils.data.Dataset):
         drum_type = words[1]
         return Metadata(id=id, drum_type=drum_type)
 
+    @staticmethod
+    def onehot_encode_label(label: str) -> torch.Tensor:
+        """
+        One-hot encode the label.
+        """
+        match label:
+            case 'kick':
+                return torch.tensor([[1, 0, 0, 0]])
+            case 'snare':
+                return torch.tensor([[0, 1, 0, 0]])
+            case 'chat':
+                return torch.tensor([[0, 0, 1, 0]])
+            case 'ohat':
+                return torch.tensor([[0, 0, 0, 1]])
+            case _:
+                raise ValueError(f'unknown label {label}')
+
     def __len__(self) -> int:
         return len(self.wav_files)
 
