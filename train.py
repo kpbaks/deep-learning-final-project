@@ -1,19 +1,28 @@
 #!/usr/bin/env -S pixi run python3
 # %%
 # import os
+import time
 import random
 import sys
+import argparse
 
 # from torchvision import utils as vutils
 # import sys
 # from dataclasses import asdict, astuple, dataclass
 from pathlib import Path
 
-import torch
 import neptune
+import torch
 
 # import torchinfo
 from loguru import logger
+
+try:
+    from rich import pretty, print
+
+    pretty.install()
+except ImportError or ModuleNotFoundError:
+    pass
 
 from dataset import DrumsDataset
 from model import Discriminator, Generator
@@ -79,7 +88,8 @@ def train(
 
     # Training is split up into two main parts. Part 1 updates the Discriminator and Part 2 updates the Generator.
     for epoch in range(num_epochs):
-        logger.info(f'Epoch {epoch + 1} / {num_epochs + 1}')
+        t_start = time.time()
+        logger.info(f'starting epoch {epoch + 1} / {num_epochs}')
         for i, (data, drum_type) in enumerate(dataloader, 0):
             d.zero_grad()
 
@@ -172,26 +182,30 @@ def train(
             # img_list.append(vutils.make_grid(fake, padding=2, normalize=True))
 
             iters += 1
+        t_end = time.time()
+        logger.info(f'epoch {epoch + 1} / {num_epochs} took {t_end - t_start:.2f} seconds')
+
     run.stop()
 
 
-def select_cuda_device_by_memory() -> torch.device:
+def select_cuda_device_by_memory() -> torch.device | None:
     """Select the CUDA device with the most available memory."""
     # Get all CUDA devices
     cuda_devices = [torch.device(f'cuda:{i}') for i in range(torch.cuda.device_count())]
     if len(cuda_devices) == 0:
-        raise RuntimeError('No CUDA devices found')
+        return None
 
     device: torch.device | None = None
-    max_memory: int = 2**64 - 1
+    max_available_memory: int = 0
 
     # Get the memory usage of each device
     for cuda_device in cuda_devices:
-        max_memory: int = torch.cuda.get_device_properties(cuda_device).total_memory
+        total_memory: int = torch.cuda.get_device_properties(cuda_device).total_memory
         allocated_memory: int = torch.cuda.memory_allocated(cuda_device)
-        available_memory: int = max_memory - allocated_memory
-        if available_memory > max_memory:
-            max_memory = available_memory
+        available_memory: int = total_memory - allocated_memory
+        logger.debug(f'{cuda_device = } {available_memory = } {total_memory = }')
+        if available_memory > max_available_memory:
+            max_available_memory = available_memory
             device = cuda_device
 
     assert device is not None
@@ -199,35 +213,56 @@ def select_cuda_device_by_memory() -> torch.device:
 
 
 def main() -> int:
-    seed: int = 1234
-    random.seed(seed)
-    torch.manual_seed(seed)
-    torch.use_deterministic_algorithms(True)  # Needed for reproducible results
-    logger.info(f'{torch.cuda.is_available() = }')
-    device = select_cuda_device_by_memory() if torch.cuda.is_available() else torch.device('cpu')
-    npgu: int = torch.cuda.device_count()
-    logger.info(f'{npgu = } {device = }')
+    argv_parser = argparse.ArgumentParser()
+    argv_parser.add_argument('--epochs', type=int, required=True, help='number of epochs')
+    argv_parser.add_argument('--seed', type=int, default=1234, help='random seed')
+    argv_parser.add_argument('--log-level', type=str, default='INFO', help='log level')
+    argv_parser.add_argument('--lr', type=float, default=0.0002, help='learning rate')
+    argv_parser.add_argument('--batch-size', type=int, default=8, help='batch size')
+    args = argv_parser.parse_args()
+
+    if args.epochs <= 0:
+        raise ValueError(f'{args.epochs = } must be positive')
+
+    if args.seed <= 0:
+        raise ValueError(f'{args.seed = } must be positive')
+
+    if args.lr <= 0:
+        raise ValueError(f'{args.lr = } must be positive')
+
+    if args.batch_size <= 0:
+        raise ValueError(f'{args.batch_size = } must be positive')
+
+    if not is_power_of_2(args.batch_size):
+        raise ValueError(f'{args.batch_size = } must be a power of 2')
+
     params = {
-        'lr': 0.0002,
-        'bs': 32,
+        'lr': args.lr,
+        'batch_size': args.batch_size,
         'input_sz': 2 * 128 * 512,
         'n_classes': 4,
         'latent_sz': 256,
         'leaky_relu_negative_slope': 0.2,
-        'num_epochs': 10,
-        'seed': seed,
+        'num_epochs': args.epochs,
+        'seed': args.seed,
     }
+
+    print(f'{params = }')
+
+    random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.use_deterministic_algorithms(True)  # Needed for reproducible results
+    logger.info(f'{torch.cuda.is_available() = }')
+    device = select_cuda_device_by_memory() or torch.device('cpu')
+    logger.info(f'{device = }')
+    npgu: int = torch.cuda.device_count()
+    logger.info(f'{npgu = } {device = }')
 
     g = Generator(params['latent_sz'], params['n_classes'], params['leaky_relu_negative_slope']).to(
         device
     )
 
     d = Discriminator(params['leaky_relu_negative_slope']).to(device)
-
-    # if (device.type == 'cuda') and (npgu > 1):
-    #     logger.info(f'Using {npgu} GPUs')
-    #     g = torch.nn.DataParallel(g, list(range(npgu)))
-    #     d = torch.nn.DataParallel(d, list(range(npgu)))
 
     logger.debug(f'{g = }')
     logger.debug(f'{d = }')
@@ -244,9 +279,6 @@ def main() -> int:
     cuda_memory_utilization_percentage: float = available_cuda_memory / max_cuda_memory * 100.0
     logger.info(f'{cuda_memory_utilization_percentage = }%')
 
-    batch_size = 8
-    assert is_power_of_2(batch_size), f'{batch_size = } must be a power of 2'
-
     # generator_stats = torchinfo.summary(g, input_size=(batch_size, 268, 1, 1))
     # discriminator_stats = torchinfo.summary(d, input_size=(batch_size, 2, 128, 512))
     # logger.info(f'{generator_stats = }')
@@ -258,9 +290,8 @@ def main() -> int:
     # logger.info(f'{sizeof_dataset_sample = } B {sizeof_batch = } B {sizeof_dataset = } B')
 
     dataloader = torch.utils.data.DataLoader(
-        dataset, batch_size=batch_size, shuffle=True, num_workers=2
+        dataset, batch_size=params['batch_size'], shuffle=True, num_workers=2
     )
-    # logger.info(f'{generator_stats.total_params = }')
 
     train(g, d, device, dataloader, params)
     return 0
@@ -269,8 +300,3 @@ def main() -> int:
 if __name__ == '__main__':
     logger.debug(f'{sys.executable = }')
     main()
-    # sys.exit()
-    # sys.exit(main(len(sys.argv), sys.argv))
-    # pass
-
-# %%
