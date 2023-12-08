@@ -13,6 +13,9 @@ import torch
 # import torchinfo
 from loguru import logger
 
+# import tqdm
+from tqdm.rich import tqdm
+
 try:
     from rich import pretty, print
 
@@ -64,6 +67,33 @@ def is_power_of_2(n: int) -> bool:
     return (n & (n - 1) == 0) and n != 0
 
 
+def print_cuda_memory_usage() -> None:
+    """Print the CUDA memory usage."""
+    RESET: str = '\033[0m'
+    GREEN: str = '\033[32m'
+    YELLOW: str = '\033[33m'
+    ORANGE: str = '\033[38;5;208m'
+    RED: str = '\033[31m'
+
+    for i in range(torch.cuda.device_count()):
+        max_memory: int = torch.cuda.get_device_properties(i).total_memory
+        allocated_memory: int = torch.cuda.memory_allocated(i)
+        available_memory: int = max_memory - allocated_memory
+        # percentage_available: float = available_memory / max_memory * 100.0
+        percentage_used: float = allocated_memory / max_memory * 100.0
+        if percentage_used > 90.0:
+            color: str = RED
+        elif percentage_used > 80.0:
+            color = ORANGE
+        elif percentage_used > 70.0:
+            color = YELLOW
+        else:
+            color = GREEN
+        logger.info(
+            f'{color}device {i} {available_memory = } {max_memory = } {percentage_used = :.2f}%{RESET}'
+        )
+
+
 def train(
     g: Generator,
     d: Discriminator,
@@ -93,8 +123,6 @@ def train(
     real_label: float = 1.0
     fake_label: float = 0.0
 
-    _img_list = []
-    iters = 0
     # Visualization of the generator progression
     _fixed_noise = torch.randn(64, params.latent_sz + params.n_classes, 1, 1, device=device)
 
@@ -102,10 +130,13 @@ def train(
     # TODO: maybe use custom tqdm progress bar
 
     # Training is split up into two main parts. Part 1 updates the Discriminator and Part 2 updates the Generator.
+    t_total = 0.0
     for epoch in range(num_epochs):
         t_start = time.time()
         logger.info(f'starting epoch {epoch + 1} / {num_epochs}')
-        for i, (data, drum_type) in enumerate(train_dataloader, 0):
+        print_cuda_memory_usage()
+
+        for i, (data, drum_type) in tqdm(enumerate(train_dataloader, 0)):
             d.zero_grad()
 
             data = data.to(device)
@@ -133,7 +164,7 @@ def train(
             )
             # Generate fake data batch with Generator
             fake_data = g(noise)
-            label.fill_(fake_label)
+            label.fill_(real_label)
 
             # Use discriminator to classify all-fake batch
             output = d(fake_data.detach()).view(-1)
@@ -222,15 +253,11 @@ def train(
             g_losses.append(g_err.item())
             d_losses.append(d_err.item())
 
-            # Check how the generator is doing by saving G's output on fixed_noise
-            # if (iters % 500 == 0) or ((epoch == num_epochs-1) and (i == len(train_dataloader)-1)):
-            # with torch.no_grad():
-            # fake = g(fixed_noise).detach().cpu()
-            # img_list.append(vutils.make_grid(fake, padding=2, normalize=True))
-
-            iters += 1
         t_end = time.time()
-        logger.info(f'epoch {epoch + 1} / {num_epochs} took {t_end - t_start:.2f} seconds')
+        t_total = +t_end - t_start
+        logger.info(
+            f'epoch {epoch + 1} / {num_epochs} took {t_end - t_start:.2f} seconds, total time: {t_total:.2f} seconds'
+        )
 
         # Save model every N epochs
         if (epoch + 1) % params.save_model_every == 0:
@@ -246,33 +273,6 @@ def train(
             logger.info(f'saved model at epoch {epoch + 1}')
 
     run.stop()
-
-
-def print_cuda_memory_usage() -> None:
-    """Print the CUDA memory usage."""
-    RESET: str = '\033[0m'
-    GREEN: str = '\033[32m'
-    YELLOW: str = '\033[33m'
-    ORANGE: str = '\033[38;5;208m'
-    RED: str = '\033[31m'
-
-    for i in range(torch.cuda.device_count()):
-        max_memory: int = torch.cuda.get_device_properties(i).total_memory
-        allocated_memory: int = torch.cuda.memory_allocated(i)
-        available_memory: int = max_memory - allocated_memory
-        # percentage_available: float = available_memory / max_memory * 100.0
-        percentage_used: float = allocated_memory / max_memory * 100.0
-        if percentage_used > 90.0:
-            color: str = RED
-        elif percentage_used > 80.0:
-            color = ORANGE
-        elif percentage_used > 70.0:
-            color = YELLOW
-        else:
-            color = GREEN
-        logger.info(
-            f'{color}device {i} {available_memory = } {max_memory = } {percentage_used = :.2f}%{RESET}'
-        )
 
 
 def select_cuda_device_by_memory() -> torch.device | None:
@@ -309,6 +309,9 @@ def main() -> int:
     argv_parser.add_argument(
         '--save-model-every', type=int, default=5, help='save model every N epochs'
     )
+    argv_parser.add_argument(
+        '--dataset-dir', type=str, help='path to dataset directory', default='~/datasets/drums'
+    )
     args = argv_parser.parse_args()
 
     if args.log_level not in ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']:
@@ -341,6 +344,12 @@ def main() -> int:
             f'{args.save_model_every = } is greater than {args.epochs = }, no models will be saved'
         )
 
+    dataset_dir: Path = Path(args.dataset_dir).expanduser()
+    if not dataset_dir.exists():
+        raise ValueError(f'{dataset_dir} does not exist')
+    if not dataset_dir.is_dir():
+        raise ValueError(f'{dataset_dir} is not a directory')
+
     params = Params(
         lr=args.lr,
         batch_size=args.batch_size,
@@ -368,7 +377,7 @@ def main() -> int:
     logger.debug(f'{g = }')
     logger.debug(f'{d = }')
 
-    dataset_dir = Path.home() / 'datasets' / 'drums'
+    # dataset_dir = Path.home() / 'datasets' / 'drums'
     train_dir = dataset_dir / 'train'
     assert train_dir.exists(), f'{train_dir} does not exist'
     assert train_dir.is_dir(), f'{train_dir} is not a directory'
