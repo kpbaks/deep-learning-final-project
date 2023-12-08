@@ -6,6 +6,7 @@ import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
+import signal
 
 import neptune
 import torch
@@ -29,7 +30,8 @@ from model import Discriminator, Generator
 
 @dataclass(frozen=True)
 class Params:
-    lr: float
+    generator_lr: float
+    discriminator_lr: float
     batch_size: int
     input_sz: int
     n_classes: int
@@ -40,8 +42,10 @@ class Params:
     save_model_every: int
 
     def __post_init__(self) -> None:
-        if self.lr <= 0:
-            raise ValueError(f'{self.lr = } must be positive')
+        if self.generator_lr <= 0:
+            raise ValueError(f'{self.generator_lr = } must be positive')
+        if self.discriminator_lr <= 0:
+            raise ValueError(f'{self.discriminator_lr = } must be positive')
         if self.batch_size <= 0:
             raise ValueError(f'{self.batch_size = } must be positive')
         if not is_power_of_2(self.batch_size):
@@ -75,6 +79,9 @@ def print_cuda_memory_usage() -> None:
     ORANGE: str = '\033[38;5;208m'
     RED: str = '\033[31m'
 
+    def format_as_mibibytes(n: int) -> str:
+        return f'{n / (1024 * 1024):.2f} MiB'
+
     for i in range(torch.cuda.device_count()):
         max_memory: int = torch.cuda.get_device_properties(i).total_memory
         allocated_memory: int = torch.cuda.memory_allocated(i)
@@ -90,7 +97,7 @@ def print_cuda_memory_usage() -> None:
         else:
             color = GREEN
         logger.info(
-            f'{color}device {i} {available_memory = } {max_memory = } {percentage_used = :.2f}%{RESET}'
+            f'{color} CUDA device {i} available_memory/max_memory {format_as_mibibytes(available_memory)} / {format_as_mibibytes(max_memory)} {percentage_used = :.2f}%{RESET}'
         )
 
 
@@ -105,11 +112,11 @@ def train(
 ) -> None:
     run['parameters'] = asdict(params)
 
-    lr = params.lr
+    # lr = params.lr
     num_epochs = params.num_epochs
 
-    g_optim = torch.optim.Adam(g.parameters(), lr=lr, betas=(0.5, 0.999))
-    d_optim = torch.optim.SGD(d.parameters(), lr=lr, momentum=0.9)
+    g_optim = torch.optim.Adam(g.parameters(), lr=params.generator_lr, betas=(0.5, 0.999))
+    d_optim = torch.optim.SGD(d.parameters(), lr=params.discriminator_lr, momentum=0.9)
 
     criterion = torch.nn.BCELoss()
 
@@ -127,16 +134,41 @@ def train(
     _fixed_noise = torch.randn(64, params.latent_sz + params.n_classes, 1, 1, device=device)
 
     # TODO: maybe initialize weights here
-    # TODO: maybe use custom tqdm progress bar
+    def save_snapshot_of_model_and_optimizer(
+        model: torch.nn.Module, optimizer: torch.optim.Optimizer, epoch: int
+    ) -> None:
+        model_dir = Path.cwd() / 'models'
+        model_dir.mkdir(exist_ok=True)
+        # assert run._id is not None
+        run_dir = model_dir / run['sys/id'].fetch() / f'epoch_{epoch + 1}'
+        run_dir.mkdir(exist_ok=True)
+        model_path = run_dir / f'{model.__class__.__name__}.pth'
+        optimizer_path = run_dir / f'{optimizer.__class__.__name__}.pth'
+        torch.save(model.state_dict(), model_path)
+        torch.save(optimizer.state_dict(), optimizer_path)
+        logger.info(f'saved model at epoch {epoch + 1}')
 
     # Training is split up into two main parts. Part 1 updates the Discriminator and Part 2 updates the Generator.
     t_total = 0.0
     for epoch in range(num_epochs):
+
+        def save_snapshot_of_both_models_and_optimizers() -> None:
+            save_snapshot_of_model_and_optimizer(g, g_optim, epoch)
+            save_snapshot_of_model_and_optimizer(d, d_optim, epoch)
+
+        def ctrl_c_handler(signum: int, frame: object) -> None:
+            logger.info('saving snapshot of models and optimizers')
+            save_snapshot_of_both_models_and_optimizers()
+            sys.exit(0)
+
+        signal.signal(signal.SIGINT, ctrl_c_handler)
+
         t_start = time.time()
+
         logger.info(f'starting epoch {epoch + 1} / {num_epochs}')
         print_cuda_memory_usage()
 
-        for i, (data, drum_type) in tqdm(enumerate(train_dataloader, 0)):
+        for i, (data, drum_type) in enumerate(tqdm(train_dataloader), 0):
             d.zero_grad()
 
             data = data.to(device)
@@ -164,7 +196,7 @@ def train(
             )
             # Generate fake data batch with Generator
             fake_data = g(noise)
-            label.fill_(real_label)
+            label.fill_(fake_label)
 
             # Use discriminator to classify all-fake batch
             output = d(fake_data.detach()).view(-1)
@@ -254,25 +286,53 @@ def train(
             d_losses.append(d_err.item())
 
         t_end = time.time()
-        t_total = +t_end - t_start
+        t_total += t_end - t_start
         logger.info(
             f'epoch {epoch + 1} / {num_epochs} took {t_end - t_start:.2f} seconds, total time: {t_total:.2f} seconds'
         )
 
         # Save model every N epochs
         if (epoch + 1) % params.save_model_every == 0:
-            model_dir = Path.cwd() / 'models'
-            model_dir.mkdir(exist_ok=True)
-            # assert run._id is not None
-            run_dir = model_dir / run['sys/id'].fetch()
-            run_dir.mkdir(exist_ok=True)
-            g_path = run_dir / f'g_{epoch + 1}.pth'
-            d_path = run_dir / f'd_{epoch + 1}.pth'
-            torch.save(g.state_dict(), g_path)
-            torch.save(d.state_dict(), d_path)
-            logger.info(f'saved model at epoch {epoch + 1}')
+            save_snapshot_of_both_models_and_optimizers()
+            # save_snapshot_of_model_and_optimizer(g, g_optim, epoch)
+            # save_snapshot_of_model_and_optimizer(d, d_optim, epoch)
+
+            # model_dir = Path.cwd() / 'models'
+            # model_dir.mkdir(exist_ok=True)
+            # # assert run._id is not None
+            # run_dir = model_dir / run['sys/id'].fetch()
+            # run_dir.mkdir(exist_ok=True)
+            # g_path = run_dir / f'g_{epoch + 1}.pth'
+            # d_path = run_dir / f'd_{epoch + 1}.pth'
+            # torch.save(g.state_dict(), g_path)
+            # torch.save(d.state_dict(), d_path)
+            # logger.info(f'saved model at epoch {epoch + 1}')
 
     run.stop()
+
+
+def test(
+    g: Generator,
+    d: Discriminator,
+    device: torch.device,
+    test_dataloader: torch.utils.data.DataLoader,
+    params: Params,
+    run: neptune.Run,
+) -> None:
+    g.eval()
+    d.eval()
+
+    _criterion = torch.nn.BCELoss()
+
+    # Establish convention for real and fake labels during training
+    _real_label: float = 1.0
+    _fake_label: float = 0.0
+
+    with torch.no_grad():
+        for i, (data, drum_type) in enumerate(tqdm(test_dataloader), 0):
+            data = data.to(device)
+
+    pass
 
 
 def select_cuda_device_by_memory() -> torch.device | None:
@@ -304,7 +364,10 @@ def main() -> int:
     argv_parser.add_argument('--epochs', type=int, required=True, help='number of epochs')
     argv_parser.add_argument('--seed', type=int, default=1234, help='random seed')
     argv_parser.add_argument('--log-level', type=str, default='INFO', help='log level')
-    argv_parser.add_argument('--lr', type=float, default=0.0002, help='learning rate')
+    argv_parser.add_argument('--glr', type=float, default=0.0002, help='learning rate')
+    argv_parser.add_argument(
+        '--dlr', type=float, default=0.0002, help='discriminator learning rate'
+    )
     argv_parser.add_argument('--batch-size', type=int, default=8, help='batch size')
     argv_parser.add_argument(
         '--save-model-every', type=int, default=5, help='save model every N epochs'
@@ -327,8 +390,11 @@ def main() -> int:
     if args.seed <= 0:
         raise ValueError(f'{args.seed = } must be positive')
 
-    if args.lr <= 0:
-        raise ValueError(f'{args.lr = } must be positive')
+    if args.glr <= 0:
+        raise ValueError(f'{args.glr = } must be positive')
+
+    if args.dlr <= 0:
+        raise ValueError(f'{args.dlr = } must be positive')
 
     if args.batch_size <= 0:
         raise ValueError(f'{args.batch_size = } must be positive')
@@ -351,7 +417,8 @@ def main() -> int:
         raise ValueError(f'{dataset_dir} is not a directory')
 
     params = Params(
-        lr=args.lr,
+        generator_lr=args.glr,
+        discriminator_lr=args.dlr,
         batch_size=args.batch_size,
         input_sz=2 * 128 * 512,
         n_classes=4,
@@ -402,36 +469,17 @@ def main() -> int:
         val_dataset, batch_size=params.batch_size, shuffle=True, num_workers=2
     )
 
-    # Estimate the highest batch size that fits in memory, based on the size of the dataset
-
     print_cuda_memory_usage()
-
-    # max_cuda_memory: int = torch.cuda.get_device_properties(device).total_memory
-    # logger.info(f'{max_cuda_memory = }')
-    # available_cuda_memory: int = max_cuda_memory - torch.cuda.memory_allocated(device)
-    # logger.info(f'{available_cuda_memory = }')
-    # cuda_memory_utilization_percentage: float = available_cuda_memory / max_cuda_memory * 100.0
-    # logger.info(f'{cuda_memory_utilization_percentage = }%')
-
-    # generator_stats = torchinfo.summary(g, input_size=(batch_size, 268, 1, 1))
-    # discriminator_stats = torchinfo.summary(d, input_size=(batch_size, 2, 128, 512))
-    # logger.info(f'{generator_stats = }')
-    # logger.info(f'{discriminator_stats = }')
-
-    # sizeof_dataset_sample: int = dataset[0].element_size() * dataset[0].numel()
-    # sizeof_batch: int = sizeof_dataset_sample * batch_size
-    # sizeof_dataset: int = sizeof_dataset_sample * len(dataset)
-    # logger.info(f'{sizeof_dataset_sample = } B {sizeof_batch = } B {sizeof_dataset = } B')
 
     run: neptune.Run = neptune.init_run(
         project='jenner/deep-learning-final-project',
         api_token='eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJlNzNkMDgxNS1lOTliLTRjNWQtOGE5Mi1lMDI5NzRkMWFjN2MifQ==',
     )
     logger.info(f'{run._id = }')
-
     logger.info(f'{run._name = }')
     logger.info(f"{run['sys/id'].fetch() = }")
 
+    logger.info('starting training')
     train(
         g=g,
         d=d,
@@ -441,6 +489,17 @@ def main() -> int:
         params=params,
         run=run,
     )
+
+    logger.info('starting testing')
+    test(
+        g=g,
+        d=d,
+        device=device,
+        test_dataloader=_test_dataloader,
+        params=params,
+        run=run,
+    )
+
     return 0
 
 

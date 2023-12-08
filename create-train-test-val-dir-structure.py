@@ -74,6 +74,9 @@ drum_types_counter = Counter([parsed_filename.drum_type for parsed_filename in p
 
 logger.info(f'{drum_types_counter = }')
 
+# import sys
+# sys.exit(0)
+
 
 def test_split_contains_all_drum_types(split: list[Path]) -> bool:
     unique_drum_types_in_split = set()

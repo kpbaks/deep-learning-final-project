@@ -123,21 +123,21 @@ class Generator(torch.nn.Module):
                 padding=0,
                 bias=False,
             ),
+            # torch.nn.BatchNorm2d(32),
+            # torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
+            # # (batch_size, 32, 128, 512)
+            # # Layer to make dimensions 129x513
+            # torch.nn.ConvTranspose2d(
+            #     in_channels=32,
+            #     out_channels=32,
+            #     kernel_size=(2, 2),
+            #     stride=1,
+            #     padding=0,
+            #     bias=False,
+            # ),
             torch.nn.BatchNorm2d(32),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
             # (batch_size, 32, 128, 512)
-            # Layer to make dimensions 129x513
-            torch.nn.ConvTranspose2d(
-                in_channels=32,
-                out_channels=32,
-                kernel_size=(2, 2),
-                stride=1,
-                padding=0,
-                bias=False,
-            ),
-            torch.nn.BatchNorm2d(32),
-            torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
-            # (batch_size, 32, 129, 513)
             torch.nn.ConvTranspose2d(
                 in_channels=32,
                 out_channels=2,
@@ -174,7 +174,7 @@ class Generator(torch.nn.Module):
 
         expect(latent_vector_size, 1, 1)
         x = self.layers(x)
-        expect(2, 129, 513)
+        expect(2, 128, 512)
         return x
 
 
@@ -200,19 +200,19 @@ class Discriminator(torch.nn.Module):
 
         self.layers = torch.nn.Sequential(
             # (batch_size, 2, 129, 513)
+            # torch.nn.Conv2d(
+            #     in_channels=2,
+            #     out_channels=32,
+            #     kernel_size=(2, 2),
+            #     stride=1,
+            #     padding=0,
+            #     bias=False,
+            # ),
+            # torch.nn.BatchNorm2d(32),
+            # torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
+            # (batch_size, 2, 128, 512)
             torch.nn.Conv2d(
                 in_channels=2,
-                out_channels=32,
-                kernel_size=(2, 2),
-                stride=1,
-                padding=0,
-                bias=False,
-            ),
-            torch.nn.BatchNorm2d(32),
-            torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
-            # (batch_size, 32, 128, 512)
-            torch.nn.Conv2d(
-                in_channels=32,
                 out_channels=32,
                 kernel_size=(1, 1),
                 bias=False,
@@ -289,7 +289,7 @@ class Discriminator(torch.nn.Module):
                     f'expect nr. {num_except_calls}: Expected shape ({batch_size}, {c}, {h}, {w}), got {x.shape = }'
                 )
 
-        expect(2, 129, 513)
+        expect(2, 128, 512)
         x = self.layers(x)
         expect(1, 1, 1)
         return x
@@ -307,7 +307,7 @@ def main() -> int:
     d.to(device)
 
     latent_size: int = 256
-    pitch_conditioning_size: int = 3 * 4
+    pitch_conditioning_size: int = 4
     g = Generator(latent_size, pitch_conditioning_size, 0.2)
     g.to(device)
 

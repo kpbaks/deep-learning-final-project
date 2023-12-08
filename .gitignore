@@ -170,3 +170,5 @@ _temp/
 
 runs/
 .neptune/
+
+models/

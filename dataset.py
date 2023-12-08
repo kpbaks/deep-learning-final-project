@@ -67,11 +67,11 @@ class DrumsDataset(torch.utils.data.Dataset):
         # print(f'{data.shape =}')
         # Apply Short-Time Fourier Transform (STFT)
         frequencies, times, Zxx = scipy.signal.stft(
-            data, fs=sample_rate, nfft=256, nperseg=256, noverlap=128, padded=False
+            data, fs=sample_rate, nfft=254, nperseg=254, padded=False
         )
 
         # Slice Zxx to have shape (128, 512)
-        # Zxx = Zxx[:128, :512]
+        Zxx = Zxx[:, :512]
 
         # print(f'{Zxx.shape = }')
         # Get the magnitude of the spectrogram
