@@ -147,7 +147,7 @@ class Generator(torch.nn.Module):
                 bias=False,
             ),
             torch.nn.Tanh(),
-            # (batch_size, 2, 129, 513)
+            # (batch_size, 2, 128, 512)
         )
 
     def expected_input_shape(self) -> torch.Size:
@@ -199,17 +199,6 @@ class Discriminator(torch.nn.Module):
         # # WaveGAN uses a fully connected layer at the end, so I will do the same.
 
         self.layers = torch.nn.Sequential(
-            # (batch_size, 2, 129, 513)
-            # torch.nn.Conv2d(
-            #     in_channels=2,
-            #     out_channels=32,
-            #     kernel_size=(2, 2),
-            #     stride=1,
-            #     padding=0,
-            #     bias=False,
-            # ),
-            # torch.nn.BatchNorm2d(32),
-            # torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
             # (batch_size, 2, 128, 512)
             torch.nn.Conv2d(
                 in_channels=2,
@@ -258,13 +247,13 @@ class Discriminator(torch.nn.Module):
             torch.nn.AvgPool2d((2, 2), stride=2),
             # (batch_size, 256, 4, 16)
             torch.nn.Conv2d(
-                in_channels=256, out_channels=12, kernel_size=(3, 3), bias=False, padding=(1, 1)
+                in_channels=256, out_channels=4, kernel_size=(3, 3), bias=False, padding=(1, 1)
             ),
-            torch.nn.BatchNorm2d(12),
+            torch.nn.BatchNorm2d(4),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
             torch.nn.AvgPool2d((2, 2), stride=2),
-            # (batch_size, 12, 2, 4)
-            torch.nn.Conv2d(in_channels=12, out_channels=1, kernel_size=(2, 8), bias=False),
+            # (batch_size, 4, 2, 8)
+            torch.nn.Conv2d(in_channels=4, out_channels=1, kernel_size=(2, 8), bias=False),
             # (batch_size, 1, 1, 1)
             torch.nn.Sigmoid(),
         )

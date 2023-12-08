@@ -118,20 +118,15 @@ def train(
     g_optim = torch.optim.Adam(g.parameters(), lr=params.generator_lr, betas=(0.5, 0.999))
     d_optim = torch.optim.SGD(d.parameters(), lr=params.discriminator_lr, momentum=0.9)
 
-    criterion = torch.nn.BCELoss()
+    # TODO: try different loss functions
+    criterion = torch.nn.BCELoss()  # Binary Cross Entropy Loss
 
     g.train()
     d.train()
 
-    g_losses: list[float] = []
-    d_losses: list[float] = []
-
     # Establish convention for real and fake labels during training
     real_label: float = 1.0
     fake_label: float = 0.0
-
-    # Visualization of the generator progression
-    _fixed_noise = torch.randn(64, params.latent_sz + params.n_classes, 1, 1, device=device)
 
     # TODO: maybe initialize weights here
     def save_snapshot_of_model_and_optimizer(
@@ -170,9 +165,6 @@ def train(
 
         for i, (data, drum_type) in enumerate(tqdm(train_dataloader), 0):
             d.zero_grad()
-
-            data = data.to(device)
-            batch_size = data.size(0)
 
             real_data = data.to(device)
             batch_size = real_data.size(0)
@@ -280,10 +272,6 @@ def train(
                         d_g_z2,
                     )
                 )
-
-            # Save Losses for plotting later
-            g_losses.append(g_err.item())
-            d_losses.append(d_err.item())
 
         t_end = time.time()
         t_total += t_end - t_start
