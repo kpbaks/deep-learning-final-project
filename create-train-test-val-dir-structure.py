@@ -16,7 +16,7 @@ class Metadata:
     drum_type: str
 
 
-DATASET_DIR = Path.home() / 'datasets' / 'y2k-core'
+DATASET_DIR = Path.home() / 'datasets' / 'drums'
 assert DATASET_DIR.exists(), f'{DATASET_DIR} does not exist'
 
 TRAIN_DIR = DATASET_DIR / 'train'

@@ -46,8 +46,10 @@ class DrumsDataset(torch.utils.data.Dataset):
 
     @staticmethod
     def parse_filename(filename: Path) -> Metadata:
-        id, drum_type = filename.stem.split('_')
-        id = int(id)
+        words = filename.stem.split('_')
+        assert len(words) >= 2, f'filename {filename} does not match the pattern'
+        id = int(words[0])
+        drum_type = words[1]
         return Metadata(id=id, drum_type=drum_type)
 
     def __len__(self) -> int:
