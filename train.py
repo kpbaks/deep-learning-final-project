@@ -65,7 +65,8 @@ def train(
     g: Generator,
     d: Discriminator,
     device: torch.device,
-    dataloader: torch.utils.data.DataLoader,
+    train_dataloader: torch.utils.data.train_dataloader,
+    val_dataloader: torch.utils.data.train_dataloader,
     params: Params,
 ) -> None:
     run = neptune.init_run(
@@ -81,11 +82,6 @@ def train(
         raise ValueError(f'{lr = } must be positive')
     if num_epochs <= 0:
         raise ValueError(f'{num_epochs = } must be positive')
-
-    # for epoch in range(10):
-    #    run['train/loss'].append(0.9**epoch)
-
-    # run['eval/f1_score'] = 0.66
 
     g_optim = torch.optim.Adam(g.parameters(), lr=lr, betas=(0.5, 0.999))
     d_optim = torch.optim.SGD(d.parameters(), lr=lr, momentum=0.9)
@@ -114,7 +110,7 @@ def train(
     for epoch in range(num_epochs):
         t_start = time.time()
         logger.info(f'starting epoch {epoch + 1} / {num_epochs}')
-        for i, (data, drum_type) in enumerate(dataloader, 0):
+        for i, (data, drum_type) in enumerate(train_dataloader, 0):
             d.zero_grad()
 
             data = data.to(device)
@@ -178,6 +174,58 @@ def train(
             # Update Generator
             g_optim.step()
 
+            d.eval()
+            g.eval()
+            # Run evaluation on validation set
+            with torch.no_grad():
+                # run on valudation set
+                for i, (data, drum_type) in enumerate(val_dataloader, 0):
+                    data = data.to(device)
+                    batch_size = data.size(0)
+                    real_data = data.to(device)
+                    batch_size = real_data.size(0)
+                    label = torch.full((batch_size,), real_label, device=device)
+                    # Forward pass with real data
+                    output_real = d(real_data).view(-1)
+                    assert output_real.shape == (batch_size,), f'{output_real.shape = }'
+
+                    # Loss on real data
+                    d_err_real = criterion(output_real, label)
+                    run['val/error/Discriminator_loss_real'].append(d_err_real)
+                    # gradients for D in backward pass
+                    d_err_real.backward()
+                    d_x = output_real.mean().item()
+                    run['val/accuracy/Discriminator_accuracy_real'].append(d_x)
+
+                    # Train Discriminator with all-fake batch
+                    # Generate batch of latent vectors (latent vector size = 260)
+                    noise = torch.randn(
+                        batch_size, params.latent_sz + params.n_classes, 1, 1, device=device
+                    )
+                    # Generate fake data batch with Generator
+                    fake_data = g(noise)
+                    label.fill_(fake_label)
+
+                    # Use discriminator to classify all-fake batch
+                    output = d(fake_data.detach()).view(-1)
+                    d_err_fake = criterion(output, label)
+                    run['val/error/Discriminator_loss_fake'].append(d_err_fake)
+
+                    # Calculate gardients for D in backward pass
+                    d_err_fake.backward()
+                    d_g_z1 = output.mean().item()
+                    run['val/accuracy/Discriminator_accuracy_fake'].append(d_g_z1)
+
+                    d_err = d_err_real + d_err_fake
+                    d_acc = (d_x + d_g_z1) / 2
+                    run['val/error/Discriminator_loss_total'].append(d_err)
+                    run['val/accuracy/Discriminator_accuracy_total'].append(d_acc)
+                    d_optim.step()
+
+                    # Update Generator -> maximize log(D(G(z)))
+                    g.zero_grad()
+                    label.fill_(real_label)
+
             # Output training stats
             if i % 5 == 0:
                 print(
@@ -186,7 +234,7 @@ def train(
                         epoch,
                         num_epochs,
                         i,
-                        len(dataloader),
+                        len(train_dataloader),
                         d_err.item(),
                         g_err.item(),
                         d_x,
@@ -200,7 +248,7 @@ def train(
             d_losses.append(d_err.item())
 
             # Check how the generator is doing by saving G's output on fixed_noise
-            # if (iters % 500 == 0) or ((epoch == num_epochs-1) and (i == len(dataloader)-1)):
+            # if (iters % 500 == 0) or ((epoch == num_epochs-1) and (i == len(train_dataloader)-1)):
             # with torch.no_grad():
             # fake = g(fixed_noise).detach().cpu()
             # img_list.append(vutils.make_grid(fake, padding=2, normalize=True))
@@ -290,7 +338,34 @@ def main() -> int:
     logger.debug(f'{d = }')
 
     dataset_dir = Path.home() / 'datasets' / 'classic_clean'
-    dataset = DrumsDataset(dataset_dir)
+    train_dir = dataset_dir / 'train'
+    assert train_dir.exists(), f'{train_dir} does not exist'
+    assert train_dir.is_dir(), f'{train_dir} is not a directory'
+    test_dir = dataset_dir / 'test'
+    assert test_dir.exists(), f'{test_dir} does not exist'
+    assert test_dir.is_dir(), f'{test_dir} is not a directory'
+    val_dir = dataset_dir / 'val'
+    assert val_dir.exists(), f'{val_dir} does not exist'
+    assert val_dir.is_dir(), f'{val_dir} is not a directory'
+
+    train_dataset = DrumsDataset(train_dir)
+    test_dataset = DrumsDataset(test_dir)
+    val_dataset = DrumsDataset(val_dir)
+    # dataset = DrumsDataset(dataset_dir)
+
+    train_dataloader = torch.utils.data.train_dataloader(
+        train_dataset, batch_size=params.batch_size, shuffle=True, num_workers=2
+    )
+    _test_dataloader = torch.utils.data.train_dataloader(
+        test_dataset, batch_size=params.batch_size, shuffle=True, num_workers=2
+    )
+    val_dataloader = torch.utils.data.train_dataloader(
+        val_dataset, batch_size=params.batch_size, shuffle=True, num_workers=2
+    )
+
+    # train_dataloader = torch.utils.data.train_dataloader(
+    #     dataset, batch_size=params.batch_size, shuffle=True, num_workers=2
+    # )
 
     # Estimate the highest batch size that fits in memory, based on the size of the dataset
 
@@ -311,11 +386,14 @@ def main() -> int:
     # sizeof_dataset: int = sizeof_dataset_sample * len(dataset)
     # logger.info(f'{sizeof_dataset_sample = } B {sizeof_batch = } B {sizeof_dataset = } B')
 
-    dataloader = torch.utils.data.DataLoader(
-        dataset, batch_size=params.batch_size, shuffle=True, num_workers=2
+    train(
+        g=g,
+        d=d,
+        device=device,
+        train_dataloader=train_dataloader,
+        val_dataloader=val_dataloader,
+        params=params,
     )
-
-    train(g, d, device, dataloader, params)
     return 0
 
 

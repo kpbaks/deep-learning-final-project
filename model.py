@@ -92,7 +92,7 @@ class Generator(torch.nn.Module):
             ),
             torch.nn.BatchNorm2d(256),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
-            # # (batch_size, 128, 16, 64)
+            # # (batch_size, 256, 16, 64)
             torch.nn.ConvTranspose2d(
                 in_channels=256,
                 out_channels=128,
@@ -103,7 +103,7 @@ class Generator(torch.nn.Module):
             ),
             torch.nn.BatchNorm2d(128),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
-            # # (batch_size, 64, 32, 128)
+            # # (batch_size, 128, 32, 128)
             torch.nn.ConvTranspose2d(
                 in_channels=128,
                 out_channels=64,
@@ -114,7 +114,7 @@ class Generator(torch.nn.Module):
             ),
             torch.nn.BatchNorm2d(64),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
-            # # (batch_size, 32, 64, 256)
+            # # (batch_size, 64, 64, 256)
             torch.nn.ConvTranspose2d(
                 in_channels=64,
                 out_channels=32,
@@ -125,7 +125,19 @@ class Generator(torch.nn.Module):
             ),
             torch.nn.BatchNorm2d(32),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
-            # (batch_size, 16, 128, 512)
+            # (batch_size, 32, 128, 512)
+            # Layer to make dimensions 129x513
+            torch.nn.ConvTranspose2d(
+                in_channels=32,
+                out_channels=32,
+                kernel_size=(2, 2),
+                stride=1,
+                padding=0,
+                bias=False,
+            ),
+            torch.nn.BatchNorm2d(32),
+            torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
+            # (batch_size, 32, 129, 513)
             torch.nn.ConvTranspose2d(
                 in_channels=32,
                 out_channels=2,
@@ -135,7 +147,7 @@ class Generator(torch.nn.Module):
                 bias=False,
             ),
             torch.nn.Tanh(),
-            # (batch_size, 2, 128, 512)
+            # (batch_size, 2, 129, 513)
         )
 
     def expected_input_shape(self) -> torch.Size:
@@ -162,7 +174,7 @@ class Generator(torch.nn.Module):
 
         expect(latent_vector_size, 1, 1)
         x = self.layers(x)
-        expect(2, 128, 512)
+        expect(2, 129, 513)
         return x
 
 
@@ -187,9 +199,20 @@ class Discriminator(torch.nn.Module):
         # # WaveGAN uses a fully connected layer at the end, so I will do the same.
 
         self.layers = torch.nn.Sequential(
-            # (batch_size, 2, 128, 512)
+            # (batch_size, 2, 129, 513)
             torch.nn.Conv2d(
                 in_channels=2,
+                out_channels=32,
+                kernel_size=(2, 2),
+                stride=1,
+                padding=0,
+                bias=False,
+            ),
+            torch.nn.BatchNorm2d(32),
+            torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
+            # (batch_size, 32, 128, 512)
+            torch.nn.Conv2d(
+                in_channels=32,
                 out_channels=32,
                 kernel_size=(1, 1),
                 bias=False,
@@ -266,7 +289,7 @@ class Discriminator(torch.nn.Module):
                     f'expect nr. {num_except_calls}: Expected shape ({batch_size}, {c}, {h}, {w}), got {x.shape = }'
                 )
 
-        expect(2, 128, 512)
+        expect(2, 129, 513)
         x = self.layers(x)
         expect(1, 1, 1)
         return x

@@ -69,7 +69,7 @@ class DrumsDataset(torch.utils.data.Dataset):
         )
 
         # Slice Zxx to have shape (128, 512)
-        Zxx = Zxx[:128, :512]
+        # Zxx = Zxx[:128, :512]
 
         # print(f'{Zxx.shape = }')
         # Get the magnitude of the spectrogram
