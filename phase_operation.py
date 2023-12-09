@@ -1,6 +1,4 @@
-import librosa
 import numpy as np
-from intervaltree import Interval, IntervalTree
 
 
 def diff(x, axis):
@@ -29,9 +27,7 @@ def diff(x, axis):
         begin_front[0] : begin_front[0] + size[0],
         begin_front[1] : begin_front[1] + size[1],
     ]
-    slice_back = x[
-        begin_back[0] : begin_back[0] + size[0], begin_back[1] : begin_back[1] + size[1]
-    ]
+    slice_back = x[begin_back[0] : begin_back[0] + size[0], begin_back[1] : begin_back[1] + size[1]]
 
     #     slice_front = tf.slice(x, begin_front, size)
     #     slice_back = tf.slice(x, begin_back, size)
@@ -75,9 +71,7 @@ def unwrap(p, discont=np.pi, axis=-1):
     ddmod = np.where(
         idx, np.zeros_like(ddmod), dd
     )  # ddmod = tf.where(idx, tf.zeros_like(ddmod), dd)
-    ph_cumsum = np.cumsum(
-        ph_correct, axis=axis
-    )  # ph_cumsum = tf.cumsum(ph_correct, axis=axis)
+    ph_cumsum = np.cumsum(ph_correct, axis=axis)  # ph_cumsum = tf.cumsum(ph_correct, axis=axis)
     #     print("idx",idx)
     #     print("ddmod",ddmod)
     #     print("ph_cumsum",ph_cumsum)
@@ -117,9 +111,7 @@ def instantaneous_frequency(phase_angle, time_axis):
     begin = [0 for unused_s in size]
     #     phase_slice = tf.slice(phase_unwrapped, begin, size)
     #     print("begin",begin)
-    phase_slice = phase_unwrapped[
-        begin[0] : begin[0] + size[0], begin[1] : begin[1] + size[1]
-    ]
+    phase_slice = phase_unwrapped[begin[0] : begin[0] + size[0], begin[1] : begin[1] + size[1]]
     #     print("phase_slice",phase_slice.shape)
     dphase = np.concatenate([phase_slice, dphase], axis=time_axis) / np.pi
 
@@ -141,9 +133,7 @@ def polar2rect(mag, phase_angle):
 
     for i, time in enumerate(phase_angle):
         for j, time_id in enumerate(time):
-            temp_phase[i, j] = np.complex(
-                np.cos(phase_angle[i, j]), np.sin(phase_angle[i, j])
-            )
+            temp_phase[i, j] = np.complex(np.cos(phase_angle[i, j]), np.sin(phase_angle[i, j]))
     #             print(temp_mag[i,j])
 
     #     phase = np.complex(np.cos(phase_angle), np.sin(phase_angle))

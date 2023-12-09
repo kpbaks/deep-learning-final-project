@@ -6260,6 +6260,27 @@ package:
   size: 179349
   timestamp: 1697222328615
 - platform: linux-64
+  name: pretty_errors
+  version: 1.2.25
+  category: main
+  manager: conda
+  dependencies:
+  - colorama
+  - python >=3.5
+  url: https://conda.anaconda.org/conda-forge/noarch/pretty_errors-1.2.25-pyhd8ed1ab_0.tar.bz2
+  hash:
+    md5: 3a4b684769e9bc189145c3e0c0f0f683
+    sha256: fe0b7d9c17a6343660858eeaca0ed04bb0febc6ef09b8866a8e18a7834582c5d
+  build: pyhd8ed1ab_0
+  arch: x86_64
+  subdir: linux-64
+  build_number: 0
+  license: MIT
+  license_family: MIT
+  noarch: python
+  size: 18720
+  timestamp: 1638034841785
+- platform: linux-64
   name: prometheus_client
   version: 0.19.0
   category: main

@@ -7,7 +7,19 @@ import torch
 EPSILON = 1.0e-3
 
 
-def audio_2_spectrum(audio, sample_rate, nperseg=256):
+def audio_2_spectrum(
+    audio: np.ndarray,
+    sample_rate: float,
+    nperseg=256,
+    use_mel_spectrum=False,
+    use_instantaneous_frequency=True,
+    unwrap_phase=True,
+):
+    """Convert a single audio waveform to the spectrum representation used by
+    the network.
+    """
+    assert audio.shape[0] == 256 * 512
+
     frequencies, times, Zxx = scipy.signal.stft(
         audio, fs=sample_rate, nfft=nperseg, nperseg=nperseg, padded=False
     )
@@ -26,7 +38,9 @@ def audio_2_spectrum(audio, sample_rate, nperseg=256):
 
     log_magnitude_spectrum = np.log(magnitude_spectrum + EPSILON)
 
-    # TODO: instantaneous frequency
+    if use_instantaneous_frequency:
+        # TODO: instantaneous frequency
+        pass
 
     # magic numbers make it so that the log sits roughly between [-1, 1]
     scaled_log_magnitude_spectrum = -1.0 + (log_magnitude_spectrum + 6.90775) * 0.28

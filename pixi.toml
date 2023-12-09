@@ -41,6 +41,7 @@ polars = "0.19.16.*"
 pre-commit = "3.5.0.*"
 pyfunctional = "1.4.3.*"
 neptune = "1.8.6.*"
+pretty_errors = "1.2.25.*"
 
 [system-requirements]
 linux = "5.4.0"

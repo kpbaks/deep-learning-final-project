@@ -1,9 +1,9 @@
-from typing import Any, TypeVar
+from typing import TypeVar
 
-T = TypeVar("T")
+T = TypeVar('T')
 
 
 def unwrap(x: T | None) -> T:
     if x is None:
-        raise ValueError("Unexpected None")
+        raise ValueError('Unexpected None')
     return x
