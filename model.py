@@ -277,18 +277,10 @@ class Discriminator(torch.nn.Module):
             torch.nn.AvgPool2d((2, 2), stride=2),
             # (batch_size, 32, 64, 256)
             torch.nn.Conv2d(
-                in_channels=32, 
-                out_channels=64, 
-                kernel_size=(3, 3), 
-                bias=False, 
-                padding=(1, 1)
+                in_channels=32, out_channels=64, kernel_size=(3, 3), bias=False, padding=(1, 1)
             ),
             torch.nn.Conv2d(
-                in_channels=64, 
-                out_channels=64, 
-                kernel_size=(3, 3), 
-                bias=False, 
-                padding=(1, 1)
+                in_channels=64, out_channels=64, kernel_size=(3, 3), bias=False, padding=(1, 1)
             ),
             torch.nn.BatchNorm2d(64),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
@@ -313,84 +305,44 @@ class Discriminator(torch.nn.Module):
             torch.nn.AvgPool2d((2, 2), stride=2),
             # (batch_size, 128, 16, 64)
             torch.nn.Conv2d(
-                in_channels=128, 
-                out_channels=256, 
-                kernel_size=(3, 3), 
-                bias=False, 
-                padding=(1, 1)
+                in_channels=128, out_channels=256, kernel_size=(3, 3), bias=False, padding=(1, 1)
             ),
             torch.nn.Conv2d(
-                in_channels=256, 
-                out_channels=256, 
-                kernel_size=(3, 3), 
-                bias=False, 
-                padding=(1, 1)
+                in_channels=256, out_channels=256, kernel_size=(3, 3), bias=False, padding=(1, 1)
             ),
             torch.nn.BatchNorm2d(256),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
             torch.nn.AvgPool2d((2, 2), stride=2),
             # (batch_size, 256, 8, 32)
             torch.nn.Conv2d(
-                in_channels=256, 
-                out_channels=256, 
-                kernel_size=(3, 3), 
-                bias=False, 
-                padding=(1, 1)
+                in_channels=256, out_channels=256, kernel_size=(3, 3), bias=False, padding=(1, 1)
             ),
             torch.nn.Conv2d(
-                in_channels=256, 
-                out_channels=256, 
-                kernel_size=(3, 3), 
-                bias=False, 
-                padding=(1, 1)
+                in_channels=256, out_channels=256, kernel_size=(3, 3), bias=False, padding=(1, 1)
             ),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
             torch.nn.Conv2d(
-                in_channels=256, 
-                out_channels=256, 
-                kernel_size=(3, 3), 
-                bias=False, 
-                padding=(1, 1)
+                in_channels=256, out_channels=256, kernel_size=(3, 3), bias=False, padding=(1, 1)
             ),
             torch.nn.Conv2d(
-                in_channels=256, 
-                out_channels=256, 
-                kernel_size=(3, 3), 
-                bias=False, 
-                padding=(1, 1)
+                in_channels=256, out_channels=256, kernel_size=(3, 3), bias=False, padding=(1, 1)
             ),
             torch.nn.BatchNorm2d(256),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
             torch.nn.AvgPool2d((2, 2), stride=2),
             # (batch_size, 256, 4, 16)
             torch.nn.Conv2d(
-                in_channels=256, 
-                out_channels=4, 
-                kernel_size=(3, 3), 
-                bias=False, 
-                padding=(1, 1)
+                in_channels=256, out_channels=4, kernel_size=(3, 3), bias=False, padding=(1, 1)
             ),
             torch.nn.Conv2d(
-                in_channels=4, 
-                out_channels=4, 
-                kernel_size=(3, 3), 
-                bias=False, 
-                padding=(1, 1)
+                in_channels=4, out_channels=4, kernel_size=(3, 3), bias=False, padding=(1, 1)
             ),
             torch.nn.BatchNorm2d(4),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
             torch.nn.AvgPool2d((2, 2), stride=2),
             # (batch_size, 4, 2, 8)
-            torch.nn.Conv2d(
-                in_channels=4, 
-                out_channels=1, 
-                kernel_size=(2, 8), 
-                bias=False),
-            torch.nn.Conv2d(
-                in_channels=1, 
-                out_channels=1, 
-                kernel_size=(2, 8), 
-                bias=False),
+            torch.nn.Conv2d(in_channels=4, out_channels=1, kernel_size=(2, 8), bias=False),
+            torch.nn.Conv2d(in_channels=1, out_channels=1, kernel_size=(2, 8), bias=False),
             # (batch_size, 1, 1, 1)
             torch.nn.Sigmoid(),
         )
