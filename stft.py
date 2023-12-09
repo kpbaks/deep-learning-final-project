@@ -54,7 +54,7 @@ def audio_2_spectrum(
 
 
 def spectrum_2_audio(
-    spectrogram: np.ndarray,
+    spectrogram: torch.Tensor,
     sample_rate: float,
     nperseg=256,
     use_mel_spectrum=False,
