@@ -206,19 +206,26 @@ def train(
             save_snapshot_of_both_models_and_optimizers()
             sys.exit(0)
 
-        def save_sample_picture() -> None:
+        def save_sample_picture(data: torch.Tensor, drum_types) -> None:
             with torch.no_grad():
                 g.eval()
+                # print(f"{data.shape = }")
+                # print(f"{drum_types = }")
                 latent_vec = generate_noise(
-                    1, params.latent_sz, params.n_classes, drum_types, device
+                    1, params.latent_sz, params.n_classes, [drum_types[0]], device
                 )
                 assert len(latent_vec.shape) == 4
                 img = g(latent_vec).detach()[0]
+                img = img.cpu().numpy()
                 assert len(img.shape) == 3
                 mag = img[0]
                 assert len(mag.shape) == 2
-                fig = plt.figure(figsize=(7, 9))
-                fig.axes[0].imshow(mag, origin='lower')
+                fig, axis = plt.subplots(figsize=(10, 12))
+                axis.set_title(f'epoch: {epoch + 1} drum type: {drum_types[0]}')
+                axis.imshow(mag, origin='lower')
+                # Show colorbar
+                fig.colorbar(img, ax=axis)
+
                 run['gen/images'].append(fig)
 
         signal.signal(signal.SIGINT, ctrl_c_handler)
@@ -242,6 +249,8 @@ def train(
             d_loss = -torch.mean(d(real_data)) + torch.mean(d(fake_data))
             d_loss.backward()
             d_optim.step()
+            # grad_norm = torch.nn.utils.clip_grad_norm_(d.parameters(), max_norm=1e3, norm_type=2)
+            # print("Discriminator gradient norm:", grad_norm)
             run['train/error/discriminator'].append(d_loss.item())
 
             # Clip weights of discriminator
@@ -279,7 +288,11 @@ def train(
 
         # Save model every N epochs
         if (epoch + 1) % params.save_model_every == 0:
-            save_sample_picture()
+            # idx = random.randint(0, len(train_dataloader) - 1)
+
+            data, drum_types = next(iter(train_dataloader))
+            # print(f'{drum_types = }')
+            save_sample_picture(data, ['snare'])
             save_snapshot_of_both_models_and_optimizers()
 
 
