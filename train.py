@@ -17,6 +17,7 @@ from loguru import logger
 # import tqdm
 # from tqdm.rich import tqdm as rtqdm, trange as rtrange
 from tqdm import tqdm, trange
+import pretty_errors  # noqa
 
 try:
     from rich import pretty, print
@@ -184,101 +185,103 @@ def train(
         progress_bar = tqdm(
             train_dataloader, desc=f'epoch {epoch + 1} / {num_epochs}', leave=False, colour='green'
         )
-        with torch.autograd.detect_anomaly():
-            for i, (data, drum_types) in enumerate(progress_bar, 0):
-                real_label = 1.0
-                fake_label = 0.0
-                # smoothing factor
-                sf = random.uniform(0.0, 0.2)
-                real_label = real_label - sf
-                fake_label = fake_label + sf
-                assert isinstance(
-                    real_label, float
-                ), f'exptected {real_label = } to be a float, but got {type(real_label) = }'
-                assert isinstance(
-                    fake_label, float
-                ), f'exptected {fake_label = } to be a float, but got {type(fake_label) = }'
-                # # [0.1, 0.9]
-                d.zero_grad()
+        # with torch.autograd.detect_anomaly():
+        for i, (data, drum_types) in enumerate(progress_bar, 0):
+            real_label = 1.0
+            fake_label = 0.0
+            # smoothing factor
+            sf = random.uniform(0.0, 0.2)
+            real_label = real_label - sf
+            fake_label = fake_label + sf
+            assert isinstance(
+                real_label, float
+            ), f'exptected {real_label = } to be a float, but got {type(real_label) = }'
+            assert isinstance(
+                fake_label, float
+            ), f'exptected {fake_label = } to be a float, but got {type(fake_label) = }'
+            # # [0.1, 0.9]
+            d.zero_grad()
 
-                real_data = data.to(device)
-                batch_size = real_data.size(0)
-                label = torch.full((batch_size,), real_label, device=device)
-                # Forward pass with real data
-                output_real = d(real_data).view(-1)
-                assert output_real.shape == (batch_size,), f'{output_real.shape = }'
+            real_data = data.to(device)
+            batch_size = real_data.size(0)
+            label = torch.full((batch_size,), real_label - sf, device=device)
+            # Forward pass with real data
+            output_real = d(real_data).view(-1)
+            assert output_real.shape == (batch_size,), f'{output_real.shape = }'
 
-                # Loss on real data
-                d_err_real = criterion(output_real, label)  # (output, target)
-                run['train/error/Discriminator_loss_real'].append(d_err_real)
-                # gradients for D in backward pass
-                d_err_real.backward()
-                d_x = output_real.mean().item()
-                run['train/accuracy/Discriminator_accuracy_real'].append(d_x)
+            # Loss on real data
+            d_err_real = criterion(output_real, label)  # (output, target)
+            run['train/error/Discriminator_loss_real'].append(d_err_real)
+            # gradients for D in backward pass
+            d_err_real.backward()
+            d_x = output_real.mean().item()
+            run['train/accuracy/Discriminator_accuracy_real'].append(d_x)
 
-                # Train Discriminator with all-fake batch
-                # Generate batch of latent vectors (latent vector size = 260)
-                noise = torch.randn(batch_size, params.latent_sz, 1, 1)
-                onehot_encoded_labels = torch.cat(
-                    [DrumsDataset.onehot_encode_label(drum_type) for drum_type in drum_types], dim=0
-                )
-                onehot_encoded_labels = onehot_encoded_labels.reshape(
-                    batch_size, params.n_classes, 1, 1
-                )
-                assert onehot_encoded_labels.shape == (
-                    batch_size,
-                    params.n_classes,
-                    1,
-                    1,
-                ), f'{onehot_encoded_labels.shape = }'
-                noise = torch.cat((noise, onehot_encoded_labels), dim=1).to(device)
-                assert noise.shape == (
-                    batch_size,
-                    params.latent_sz + params.n_classes,
-                    1,
-                    1,
-                ), f'{noise.shape = }'
+            # Train Discriminator with all-fake batch
+            # Generate batch of latent vectors (latent vector size = 260)
+            noise = torch.randn(batch_size, params.latent_sz, 1, 1)
+            onehot_encoded_labels = torch.cat(
+                [DrumsDataset.onehot_encode_label(drum_type) for drum_type in drum_types], dim=0
+            )
+            onehot_encoded_labels = onehot_encoded_labels.reshape(
+                batch_size, params.n_classes, 1, 1
+            )
+            assert onehot_encoded_labels.shape == (
+                batch_size,
+                params.n_classes,
+                1,
+                1,
+            ), f'{onehot_encoded_labels.shape = }'
+            noise = torch.cat((noise, onehot_encoded_labels), dim=1).to(device)
+            assert noise.shape == (
+                batch_size,
+                params.latent_sz + params.n_classes,
+                1,
+                1,
+            ), f'{noise.shape = }'
 
-                # Generate fake data batch with Generator
-                fake_data = g(noise)
-                # label.fill_(fake_label)
-                label.fill_(0.0 + sf)
+            # Generate fake data batch with Generator
+            fake_data = g(noise)
+            # label.fill_(fake_label)
 
-                # Use discriminator to classify all-fake batch
-                output = d(fake_data.detach()).view(-1)
-                # assert output.shape == (batch_size, 1), f'{output.shape = }'
-                d_err_fake = criterion(output, label)
-                run['train/error/Discriminator_loss_fake'].append(d_err_fake)
+            label_fake = torch.full((batch_size,), fake_label + sf, device=device)
 
-                # Calculate gradients for D in backward pass
-                d_err_fake.backward()
-                d_g_z1 = output.mean().item()  # D(G(z))
-                run['train/accuracy/Discriminator_accuracy_fake'].append(d_g_z1)
+            # Use discriminator to classify all-fake batch
+            output = d(fake_data.detach()).view(-1)
+            # assert output.shape == (batch_size, 1), f'{output.shape = }'
+            d_err_fake = criterion(output, label_fake)
+            run['train/error/Discriminator_loss_fake'].append(d_err_fake)
 
-                d_err = d_err_real + d_err_fake
-                d_acc = (d_x + d_g_z1) / 2
-                run['train/error/Discriminator_loss_total'].append(d_err)
-                run['train/accuracy/Discriminator_accuracy_total'].append(d_acc)
-                d_optim.step()
+            # Calculate gradients for D in backward pass
+            d_err_fake.backward()
+            d_g_z1 = output.mean().item()  # D(G(z))
+            run['train/accuracy/Discriminator_accuracy_fake'].append(d_g_z1)
 
-                # Update Generator -> maximize log(D(G(z)))
-                g.zero_grad()
-                # label.fill_(real_label)  # fake labels are real for the generator
-                label.fill_(1.0 - sf)  # fake labels are real for the generator
+            d_err = d_err_real + d_err_fake
+            d_acc = (d_x + d_g_z1) / 2
+            run['train/error/Discriminator_loss_total'].append(d_err)
+            run['train/accuracy/Discriminator_accuracy_total'].append(d_acc)
+            d_optim.step()
 
-                # Since we just updated D, perform another forward pass of all-fake batch through D
-                output = d(fake_data).view(-1)
+            # Update Generator -> maximize log(D(G(z)))
+            g.zero_grad()
 
-                # Calculate generator loss based on new output from discriminator
+            # fake labels are real for the generator
+            label_generator = torch.full((batch_size,), real_label - sf, device=device)
 
-                g_err = criterion(output, label)
-                run['train/error/Generator_error'].append(g_err)
-                # Backwardspass
-                g_err.backward()
-                d_g_z2 = output.mean().item()
-                run['train/accuracy/Generator_accuracy'].append(d_g_z2)
-                # Update Generator
-                g_optim.step()
+            # Since we just updated D, perform another forward pass of all-fake batch through D
+            output = d(fake_data.detach()).view(-1)
+
+            # Calculate generator loss based on new output from discriminator
+
+            g_err = criterion(output, label_generator)
+            run['train/error/Generator_error'].append(g_err)
+            # Backwardspass
+            g_err.backward()
+            d_g_z2 = output.mean().item()
+            run['train/accuracy/Generator_accuracy'].append(d_g_z2)
+            # Update Generator
+            g_optim.step()
 
         # Run evaluation on validation set
         with torch.no_grad():
