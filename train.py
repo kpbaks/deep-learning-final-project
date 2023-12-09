@@ -11,6 +11,7 @@ import signal
 
 import neptune
 import torch
+import matplotlib.pyplot as plt
 
 # import torchinfo
 from loguru import logger
@@ -121,7 +122,11 @@ def weights_init(m: torch.nn.Module, stddev: float = 0.02) -> None:
 
 
 def generate_noise(
-    batch_size: int, latent_sz: int, n_classes: int, drum_types: list[str], device: torch.device
+    batch_size: int,
+    latent_sz: int,
+    n_classes: int,
+    drum_types: list[str],
+    device: torch.device,
 ) -> torch.Tensor:
     # Generate batch of latent vectors (latent vector size = 260)
     noise = torch.randn(batch_size, latent_sz, 1, 1)
@@ -201,10 +206,28 @@ def train(
             save_snapshot_of_both_models_and_optimizers()
             sys.exit(0)
 
+        def save_sample_picture() -> None:
+            with torch.no_grad():
+                g.eval()
+                latent_vec = generate_noise(
+                    1, params.latent_sz, params.n_classes, drum_types, device
+                )
+                assert len(latent_vec.shape) == 4
+                img = g(latent_vec).detach()[0]
+                assert len(img.shape) == 3
+                mag = img[0]
+                assert len(mag.shape) == 2
+                fig = plt.figure(figsize=(7, 9))
+                fig.axes[0].imshow(mag, origin='lower')
+                run['gen/images'].append(fig)
+
         signal.signal(signal.SIGINT, ctrl_c_handler)
 
         progress_bar = tqdm(
-            train_dataloader, desc=f'epoch {epoch + 1} / {num_epochs}', leave=False, colour='green'
+            train_dataloader,
+            desc=f'epoch {epoch + 1} / {num_epochs}',
+            leave=False,
+            colour='green',
         )
         for i, (data, drum_types) in enumerate(progress_bar, 0):
             d_optim.zero_grad()
@@ -256,6 +279,7 @@ def train(
 
         # Save model every N epochs
         if (epoch + 1) % params.save_model_every == 0:
+            save_sample_picture()
             save_snapshot_of_both_models_and_optimizers()
 
 
@@ -324,11 +348,17 @@ def main() -> int:
         '--save-model-every', type=int, default=5, help='save model every N epochs'
     )
     argv_parser.add_argument(
-        '--dataset-dir', type=str, help='path to dataset directory', default='~/datasets/drums'
+        '--dataset-dir',
+        type=str,
+        help='path to dataset directory',
+        default='~/datasets/drums',
     )
     argv_parser.add_argument('--name', type=str, help='name of the run', required=False)
     argv_parser.add_argument(
-        '--train-generator-every', type=int, default=5, help='train generator every N iterations'
+        '--train-generator-every',
+        type=int,
+        default=5,
+        help='train generator every N iterations',
     )
     args = argv_parser.parse_args()
 
