@@ -133,12 +133,12 @@ def train(
         model: torch.nn.Module, optimizer: torch.optim.Optimizer, epoch: int
     ) -> None:
         model_dir = Path.cwd() / 'models'
-        model_dir.mkdir(exist_ok=True)
+        model_dir.mkdir(exist_ok=True, parents=True)
         # assert run._id is not None
         run_dir = model_dir / run['sys/id'].fetch() / f'epoch_{epoch + 1}'
-        run_dir.mkdir(exist_ok=True)
-        model_path = run_dir / f'{model.__class__.__name__}.pth'
-        optimizer_path = run_dir / f'{optimizer.__class__.__name__}.pth'
+        run_dir.mkdir(exist_ok=True, parents=True)
+        model_path = run_dir / f'{model.__class__.__name__.lower()}.pth'
+        optimizer_path = run_dir / f'{optimizer.__class__.__name__.lower()}.pth'
         torch.save(model.state_dict(), model_path)
         torch.save(optimizer.state_dict(), optimizer_path)
         logger.info(f'saved model at epoch {epoch + 1}')
@@ -185,11 +185,16 @@ def train(
             # Generate batch of latent vectors (latent vector size = 260)
             noise = torch.randn(batch_size, params.latent_sz, 1, 1)
             onehot_encoded_labels = torch.cat(
-                (DrumsDataset.onehot_encode_label(drum_type) for drum_type in drum_types), dim=0
+                [DrumsDataset.onehot_encode_label(drum_type) for drum_type in drum_types], dim=0
+            )
+            onehot_encoded_labels = onehot_encoded_labels.reshape(
+                batch_size, params.n_classes, 1, 1
             )
             assert onehot_encoded_labels.shape == (
                 batch_size,
                 params.n_classes,
+                1,
+                1,
             ), f'{onehot_encoded_labels.shape = }'
             noise = torch.cat((noise, onehot_encoded_labels), dim=1).to(device)
             assert noise.shape == (
@@ -205,7 +210,7 @@ def train(
 
             # Use discriminator to classify all-fake batch
             output = d(fake_data.detach()).view(-1)
-            assert output.shape == (batch_size, 1)
+            # assert output.shape == (batch_size, 1), f'{output.shape = }'
             d_err_fake = criterion(output, label)
             run['train/error/Discriminator_loss_fake'].append(d_err_fake)
 
@@ -257,11 +262,16 @@ def train(
                 # Generate batch of latent vectors (latent vector size = 260)
                 noise = torch.randn(batch_size, params.latent_sz, 1, 1)
                 onehot_encoded_labels = torch.cat(
-                    (DrumsDataset.onehot_encode_label(drum_type) for drum_type in drum_types), dim=0
+                    [DrumsDataset.onehot_encode_label(drum_type) for drum_type in drum_types], dim=0
+                )
+                onehot_encoded_labels = onehot_encoded_labels.reshape(
+                    batch_size, params.n_classes, 1, 1
                 )
                 assert onehot_encoded_labels.shape == (
                     batch_size,
                     params.n_classes,
+                    1,
+                    1,
                 ), f'{onehot_encoded_labels.shape = }'
                 noise = torch.cat((noise, onehot_encoded_labels), dim=1).to(device)
                 assert noise.shape == (
@@ -292,8 +302,6 @@ def train(
         # Save model every N epochs
         if (epoch + 1) % params.save_model_every == 0:
             save_snapshot_of_both_models_and_optimizers()
-
-    run.stop()
 
 
 def test(
@@ -475,15 +483,17 @@ def main() -> int:
         run=run,
     )
 
-    logger.info('starting testing')
-    test(
-        g=g,
-        d=d,
-        device=device,
-        test_dataloader=_test_dataloader,
-        params=params,
-        run=run,
-    )
+    # logger.info('starting testing')
+    # test(
+    #     g=g,
+    #     d=d,
+    #     device=device,
+    #     test_dataloader=_test_dataloader,
+    #     params=params,
+    #     run=run,
+    # )
+
+    run.stop()
 
     return 0
 

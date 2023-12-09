@@ -67,6 +67,7 @@ class DrumsDataset(torch.utils.data.Dataset):
             case 'ohat':
                 return torch.tensor([[0, 0, 0, 1]])
             case _:
+                print(f'unknown label {label = }')
                 raise ValueError(f'unknown label {label}')
 
     def __len__(self) -> int:
@@ -77,7 +78,7 @@ class DrumsDataset(torch.utils.data.Dataset):
         if not 0 <= idx < len(self):
             raise IndexError(f'index {idx} is out of range')
 
-        _metadata = self.parse_filename(self.wav_files[idx])
+        metadata = self.parse_filename(self.wav_files[idx])
 
         sample_rate, data = scipy.io.wavfile.read(self.wav_files[idx])
 
@@ -107,7 +108,7 @@ class DrumsDataset(torch.utils.data.Dataset):
         # Convert to torch tensor
         spectrogram = torch.from_numpy(spectrogram)
 
-        return spectrogram, 'drum_type'
+        return spectrogram, metadata.drum_type
 
 
 def main(dataset_dir: Path) -> int:

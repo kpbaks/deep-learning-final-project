@@ -6,6 +6,7 @@ import shutil
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+# import sys
 
 from loguru import logger
 
@@ -73,9 +74,6 @@ parsed_filenames = [parse_filename(filename) for filename in wav_files]
 drum_types_counter = Counter([parsed_filename.drum_type for parsed_filename in parsed_filenames])
 
 logger.info(f'{drum_types_counter = }')
-
-# import sys
-# sys.exit(0)
 
 
 def test_split_contains_all_drum_types(split: list[Path]) -> bool:
