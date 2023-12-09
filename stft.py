@@ -20,6 +20,9 @@ def audio_2_spectrum(
     """
     assert audio.shape[0] == 128 * 512
 
+    # casting to a higher resolution to maximize quality
+    audio = audio.astype(np.float64)
+
     frequencies, times, Zxx = scipy.signal.stft(
         audio, fs=sample_rate, nfft=nperseg, nperseg=nperseg, padded=False
     )
@@ -47,7 +50,7 @@ def audio_2_spectrum(
 
     # convert to tensor
     spectrogram = np.stack((scaled_log_magnitude_spectrum, scaled_phase_spectrum), axis=0)
-    spectrogram = torch.from_numpy(spectrogram)
+    spectrogram = torch.from_numpy(spectrogram).to(torch.float32)
     assert spectrogram.shape == (2, *magnitude_spectrum.shape)
 
     return spectrogram
