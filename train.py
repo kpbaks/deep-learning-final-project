@@ -160,7 +160,7 @@ def train(
     # lr = params.lr
     num_epochs = params.num_epochs
 
-    g_optim = torch.optim.Adam(g.parameters(), lr=params.generator_lr, betas=(0.8, 0.999))
+    g_optim = torch.optim.Adam(g.parameters(), lr=params.generator_lr, betas=(0.5, 0.999))
     d_optim = torch.optim.Adam(d.parameters(), lr=params.discriminator_lr, betas=(0.5, 0.999))
 
     # TODO: try different loss functions
@@ -189,6 +189,8 @@ def train(
 
     # Training is split up into two main parts. Part 1 updates the Discriminator and Part 2 updates the Generator.
     for epoch in trange(num_epochs, leave=False, colour='blue'):
+        g.train()
+        d.train()
 
         def save_snapshot_of_both_models_and_optimizers() -> None:
             save_snapshot_of_model_and_optimizer(g, g_optim, epoch)
@@ -311,7 +313,7 @@ def select_cuda_device_by_memory() -> torch.device | None:
 def main() -> int:
     argv_parser = argparse.ArgumentParser()
     argv_parser.add_argument('--epochs', type=int, required=True, help='number of epochs')
-    argv_parser.add_argument('--seed', type=int, default=1234, help='random seed')
+    argv_parser.add_argument('--seed', type=int, required=False, help='random seed')
     argv_parser.add_argument('--log-level', type=str, default='INFO', help='log level')
     argv_parser.add_argument('--glr', type=float, default=0.0002, help='learning rate')
     argv_parser.add_argument(
@@ -337,8 +339,12 @@ def main() -> int:
     logger.remove()
     logger.add(sys.stderr, level=args.log_level)
 
+    logger.debug(f'{args = }')
     if args.epochs <= 0:
         raise ValueError(f'{args.epochs = } must be positive')
+
+    if args.seed is None:
+        args.seed = random.choice([7, 42, 69, 666, 420, 42069, 69420])
 
     if args.seed <= 0:
         raise ValueError(f'{args.seed = } must be positive')
