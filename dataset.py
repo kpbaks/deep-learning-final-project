@@ -3,11 +3,13 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Tuple
 
-import numpy as np
 import scipy
 import torch
 from sklearn.preprocessing import MinMaxScaler
+
+from stft import audio_2_spectrum
 
 
 @dataclass
@@ -73,45 +75,51 @@ class DrumsDataset(torch.utils.data.Dataset):
     def __len__(self) -> int:
         return len(self.wav_files)
 
-    def __getitem__(self, idx: int) -> torch.Tensor:
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, str]:
         # Load audio file
         if not 0 <= idx < len(self):
             raise IndexError(f'index {idx} is out of range')
 
         sample_rate, data = scipy.io.wavfile.read(self.wav_files[idx])
-        # Apply Short-Time Fourier Transform (STFT)
-        frequencies, times, Zxx = scipy.signal.stft(
-            data, fs=sample_rate, nfft=254, nperseg=254, padded=False
-        )
+        # # Apply Short-Time Fourier Transform (STFT)
+        # frequencies, times, Zxx = scipy.signal.stft(
+        #     data, fs=sample_rate, nfft=254, nperseg=254, padded=False
+        # )
+        # assert Zxx.shape[0] == 128
 
-        # Slice Zxx to have shape (128, 512)
-        Zxx = Zxx[:, :512]
+        # # Slice Zxx to have shape (128, 512)
+        # Zxx = Zxx[:, :512]
 
-        # print(f'{Zxx.shape = }')
-        # Get the magnitude of the spectrogram
-        # Take the log of the magnitude to better constrain the range and the
-        # scale to be between [-1, 1] to match the range of the tanh activation
-        magnitude_spectrum = np.abs(Zxx)
-        # print(f'{max}')
-        epsilon = 1e-8
-        log_magnitude_spectrum = np.log(magnitude_spectrum + epsilon)
-        scaled_log_magnitude_spectrum = self.scaler.fit_transform(log_magnitude_spectrum)
+        # # print(f'{Zxx.shape = }')
+        # # Get the magnitude of the spectrogram
+        # # Take the log of the magnitude to better constrain the range and the
+        # # scale to be between [-1, 1] to match the range of the tanh activation
+        # magnitude_spectrum = np.abs(Zxx)
+        # # print(f'{max}')
+        # epsilon = 1e-8
+        # log_magnitude_spectrum = np.log(magnitude_spectrum + epsilon)
+        # scaled_log_magnitude_spectrum = self.scaler.fit_transform(
+        #     log_magnitude_spectrum
+        # )
 
-        phase_spectrum = np.angle(Zxx)
-        assert magnitude_spectrum.shape == phase_spectrum.shape
-        scaled_phase_spectrum = self.scaler.fit_transform(phase_spectrum)
+        # phase_spectrum = np.angle(Zxx)
+        # assert magnitude_spectrum.shape == phase_spectrum.shape
+        # scaled_phase_spectrum = self.scaler.fit_transform(phase_spectrum)
 
-        # Normalize the spectrogram
-        # spectrogram = self.scaler.fit_transform(spectrogram)
+        # # Normalize the spectrogram
+        # # spectrogram = self.scaler.fit_transform(spectrogram)
 
-        # Stack the magnitude and phase spectrograms
-        # Put the channels first, because PyTorch expects it that way
-        # spectrogram = np.stack((magnitude_spectrum, phase_spectrum), axis=0)
-        spectrogram = np.stack((scaled_log_magnitude_spectrum, scaled_phase_spectrum), axis=0)
-        assert spectrogram.shape == (2, *magnitude_spectrum.shape)
+        # # Stack the magnitude and phase spectrograms
+        # # Put the channels first, because PyTorch expects it that way
+        # # spectrogram = np.stack((magnitude_spectrum, phase_spectrum), axis=0)
+        # spectrogram = np.stack(
+        #     (scaled_log_magnitude_spectrum, scaled_phase_spectrum), axis=0
+        # )
+        # assert spectrogram.shape == (2, *magnitude_spectrum.shape)
 
-        # Convert to torch tensor
-        spectrogram = torch.from_numpy(spectrogram)
+        # # Convert to torch tensor
+        # spectrogram = torch.from_numpy(spectrogram)
+        spectrogram = audio_2_spectrum(data, sample_rate)
 
         metadata = self.parse_filename(self.wav_files[idx])
         return spectrogram, metadata.drum_type
