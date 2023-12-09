@@ -118,13 +118,6 @@ class Generator(torch.nn.Module):
             PixelNorm(),
             # ShapeChecker(torch.Size([256, 8, 32])),
             # (batch_size, 256, 8, 32)
-            torch.nn.Conv2d(
-                in_channels=256,
-                out_channels=256,
-                kernel_size=(3, 3),
-                padding=(1, 1),
-                bias=False,
-            ),
             # torch.nn.BatchNorm2d(256),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=inplace),
             PixelNorm(),
@@ -141,13 +134,6 @@ class Generator(torch.nn.Module):
             PixelNorm(),
             # ShapeChecker(torch.Size([256, 16, 64])),
             # # (batch_size, 256, 16, 64)
-            torch.nn.Conv2d(
-                in_channels=256,
-                out_channels=128,
-                kernel_size=(3, 3),
-                padding=(1, 1),
-                bias=False,
-            ),
             # torch.nn.BatchNorm2d(128),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=inplace),
             PixelNorm(),
@@ -164,13 +150,6 @@ class Generator(torch.nn.Module):
             PixelNorm(),
             # ShapeChecker(torch.Size([128, 32, 128])),
             # # (batch_size, 128, 32, 128)
-            torch.nn.Conv2d(
-                in_channels=128,
-                out_channels=64,
-                kernel_size=(3, 3),
-                padding=(1, 1),
-                bias=False,
-            ),
             # torch.nn.BatchNorm2d(64),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=inplace),
             PixelNorm(),
@@ -187,13 +166,6 @@ class Generator(torch.nn.Module):
             PixelNorm(),
             # ShapeChecker(torch.Size([64, 64, 256])),
             # # (batch_size, 64, 64, 256)
-            torch.nn.Conv2d(
-                in_channels=64,
-                out_channels=32,
-                kernel_size=(3, 3),
-                padding=(1, 1),
-                bias=False,
-            ),
             # torch.nn.BatchNorm2d(32),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=inplace),
             PixelNorm(),
@@ -286,44 +258,28 @@ class Discriminator(torch.nn.Module):
         self.layers = torch.nn.Sequential(
             # (batch_size, 2, 128, 512)
             torch.nn.Conv2d(
-                in_channels=2,
-                out_channels=32,
+                2,
+                32,
                 kernel_size=(1, 1),
                 bias=False,
             ),
             # ShapeChecker(torch.Size([32, 128, 512])),
             torch.nn.Conv2d(
-                in_channels=32,
-                out_channels=32,
+                32,
+                32,
                 kernel_size=(3, 3),
                 padding=(1, 1),
                 bias=False,
             ),
             # ShapeChecker(torch.Size([32, 128, 512])),
-            # torch.nn.Conv2d(
-            #     in_channels=32,
-            #     out_channels=32,
-            #     kernel_size=(3, 3),
-            #     padding=(1, 1),
-            #     bias=False,
-            # ),
             # ShapeChecker(torch.Size([32, 128, 512])),
             torch.nn.BatchNorm2d(32),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
             torch.nn.AvgPool2d((2, 2), stride=2),
             # (batch_size, 32, 64, 256)
             # ShapeChecker(torch.Size([32, 64, 256])),
-            torch.nn.Conv2d(
-                in_channels=32, out_channels=64, kernel_size=(3, 3), bias=False, padding=(1, 1)
-            ),
+            torch.nn.Conv2d(32, 64, kernel_size=(3, 3), bias=False, padding=(1, 1)),
             # ShapeChecker(torch.Size([64, 64, 256])),
-            # torch.nn.Conv2d(
-            #     in_channels=64,
-            #     out_channels=64,
-            #     kernel_size=(3, 3),
-            #     bias=False,
-            #     padding=(1, 1)
-            # ),
             # ShapeChecker(torch.Size([64, 64, 256])),
             torch.nn.BatchNorm2d(64),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
@@ -331,8 +287,8 @@ class Discriminator(torch.nn.Module):
             # ShapeChecker(torch.Size([64, 32, 128])),
             # (batch_size, 64, 32, 128)
             torch.nn.Conv2d(
-                in_channels=64,
-                out_channels=128,
+                64,
+                128,
                 kernel_size=(3, 3),
                 bias=False,
                 padding=(1, 1),
@@ -413,13 +369,7 @@ class Discriminator(torch.nn.Module):
             # ShapeChecker(torch.Size([4, 2, 8])),
             # (batch_size, 4, 2, 8)
             torch.nn.Conv2d(in_channels=4, out_channels=1, kernel_size=(2, 8), bias=False),
-            # torch.nn.Conv2d(
-            #     in_channels=1,
-            #     out_channels=1,
-            #     kernel_size=(2, 8),
-            #     bias=False),
-            # (batch_size, 1, 1, 1)
-            # ShapeChecker(torch.Size([1, 1, 1])),
+            # TODO: maybe try Linear instead of Conv2d?
             torch.nn.Sigmoid(),
         )
 
