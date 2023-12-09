@@ -42,7 +42,7 @@ class DrumsDataset(torch.utils.data.Dataset):
         if len(self.wav_files) == 0:
             raise ValueError(f'{dataset_dir = } does not contain any WAV files')
 
-        self.scaler = MinMaxScaler()
+        self.scaler = MinMaxScaler(feature_range=(-1, 1))
 
     @staticmethod
     def parse_filename(filename: Path) -> Metadata:
@@ -78,11 +78,7 @@ class DrumsDataset(torch.utils.data.Dataset):
         if not 0 <= idx < len(self):
             raise IndexError(f'index {idx} is out of range')
 
-        metadata = self.parse_filename(self.wav_files[idx])
-
         sample_rate, data = scipy.io.wavfile.read(self.wav_files[idx])
-
-        # print(f'{data.shape =}')
         # Apply Short-Time Fourier Transform (STFT)
         frequencies, times, Zxx = scipy.signal.stft(
             data, fs=sample_rate, nfft=254, nperseg=254, padded=False
@@ -93,21 +89,31 @@ class DrumsDataset(torch.utils.data.Dataset):
 
         # print(f'{Zxx.shape = }')
         # Get the magnitude of the spectrogram
+        # Take the log of the magnitude to better constrain the range and the
+        # scale to be between [-1, 1] to match the range of the tanh activation
         magnitude_spectrum = np.abs(Zxx)
+        # print(f'{max}')
+        epsilon = 1e-8
+        log_magnitude_spectrum = np.log(magnitude_spectrum + epsilon)
+        scaled_log_magnitude_spectrum = self.scaler.fit_transform(log_magnitude_spectrum)
+
         phase_spectrum = np.angle(Zxx)
         assert magnitude_spectrum.shape == phase_spectrum.shape
+        scaled_phase_spectrum = self.scaler.fit_transform(phase_spectrum)
 
         # Normalize the spectrogram
         # spectrogram = self.scaler.fit_transform(spectrogram)
 
         # Stack the magnitude and phase spectrograms
         # Put the channels first, because PyTorch expects it that way
-        spectrogram = np.stack((magnitude_spectrum, phase_spectrum), axis=0)
+        # spectrogram = np.stack((magnitude_spectrum, phase_spectrum), axis=0)
+        spectrogram = np.stack((scaled_log_magnitude_spectrum, scaled_phase_spectrum), axis=0)
         assert spectrogram.shape == (2, *magnitude_spectrum.shape)
 
         # Convert to torch tensor
         spectrogram = torch.from_numpy(spectrogram)
 
+        metadata = self.parse_filename(self.wav_files[idx])
         return spectrogram, metadata.drum_type
 
 

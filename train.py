@@ -15,7 +15,8 @@ import torch
 from loguru import logger
 
 # import tqdm
-from tqdm.rich import tqdm
+# from tqdm.rich import tqdm as rtqdm, trange as rtrange
+from tqdm import tqdm, trange
 
 try:
     from rich import pretty, print
@@ -145,7 +146,8 @@ def train(
 
     # Training is split up into two main parts. Part 1 updates the Discriminator and Part 2 updates the Generator.
     t_total = 0.0
-    for epoch in range(num_epochs):
+    # epoch_progress_bar = tqdm(range(num_epochs), desc='epochs', leave=False, color='blue')
+    for epoch in trange(num_epochs, leave=False, color='blue'):
 
         def save_snapshot_of_both_models_and_optimizers() -> None:
             save_snapshot_of_model_and_optimizer(g, g_optim, epoch)
@@ -160,10 +162,12 @@ def train(
 
         t_start = time.time()
 
-        logger.info(f'starting epoch {epoch + 1} / {num_epochs}')
-        print_cuda_memory_usage()
-
-        for i, (data, drum_types) in enumerate(tqdm(train_dataloader), 0):
+        # logger.info(f'starting epoch {epoch + 1} / {num_epochs}')
+        # print_cuda_memory_usage()
+        progress_bar = tqdm(
+            train_dataloader, desc=f'epoch {epoch + 1} / {num_epochs}', leave=False, color='green'
+        )
+        for i, (data, drum_types) in enumerate(progress_bar, 0):
             d.zero_grad()
 
             real_data = data.to(device)
@@ -293,11 +297,13 @@ def train(
                 d_acc = (d_x + d_g_z1) / 2
                 run['validation/accuracy/Discriminator_accuracy_total'].append(d_acc)
 
+        # progress_bar.close()
+        # progress_bar.reset()
         t_end = time.time()
         t_total += t_end - t_start
-        logger.info(
-            f'epoch {epoch + 1} / {num_epochs} took {t_end - t_start:.2f} seconds, total time: {t_total:.2f} seconds'
-        )
+        # logger.info(
+        #     f'epoch {epoch + 1} / {num_epochs} took {t_end - t_start:.2f} seconds, total time: {t_total:.2f} seconds'
+        # )
 
         # Save model every N epochs
         if (epoch + 1) % params.save_model_every == 0:
