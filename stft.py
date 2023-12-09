@@ -18,7 +18,7 @@ def audio_2_spectrum(
     """Convert a single audio waveform to the spectrum representation used by
     the network.
     """
-    assert audio.shape[0] == 256 * 512
+    assert audio.shape[0] == 128 * 512
 
     frequencies, times, Zxx = scipy.signal.stft(
         audio, fs=sample_rate, nfft=nperseg, nperseg=nperseg, padded=False
@@ -39,12 +39,11 @@ def audio_2_spectrum(
     log_magnitude_spectrum = np.log(magnitude_spectrum + EPSILON)
 
     if use_instantaneous_frequency:
-        # TODO: instantaneous frequency
-        pass
+        phase_spectrum = _instantaneous_frequency(phase_spectrum, unwrap_phase)
+    scaled_phase_spectrum = phase_spectrum / np.pi
 
     # magic numbers make it so that the log sits roughly between [-1, 1]
     scaled_log_magnitude_spectrum = -1.0 + (log_magnitude_spectrum + 6.90775) * 0.28
-    scaled_phase_spectrum = phase_spectrum / np.pi
 
     # convert to tensor
     spectrogram = np.stack((scaled_log_magnitude_spectrum, scaled_phase_spectrum), axis=0)
@@ -54,7 +53,14 @@ def audio_2_spectrum(
     return spectrogram
 
 
-def spectrum_2_audio(spectrogram, sample_rate, nperseg=256, overlap=128):
+def spectrum_2_audio(
+    spectrogram: np.ndarray,
+    sample_rate: float,
+    nperseg=256,
+    use_mel_spectrum=False,
+    use_instantaneous_frequency=True,
+    unwrap_phase=True,
+):
     scaled_log_magnitude_spectrum = spectrogram[0]
     scaled_phase_spectrum = spectrogram[1]
 
@@ -64,6 +70,10 @@ def spectrum_2_audio(spectrogram, sample_rate, nperseg=256, overlap=128):
 
     # unlog
     magnitude_spectrum = np.exp(log_magnitude_spectrum) - EPSILON
+
+    # uninstantaneous freq
+    if use_instantaneous_frequency:
+        phase_spectrum = np.cumsum(phase_spectrum, axis=1)
 
     Zxx = magnitude_spectrum * torch.exp(1j * phase_spectrum)
     assert Zxx.shape == (128, 512)
@@ -76,23 +86,66 @@ def spectrum_2_audio(spectrogram, sample_rate, nperseg=256, overlap=128):
     return audio
 
 
-def _unwrap_phases(phases):
-    pass
+def _unwrap_phases(phases: np.ndarray):
+    """Unwrap cyclic phase, so that it doesn't have discontinuities"""
+
+    # diffs the wrapped phase, then transforms the diffs and takes
+    # the integral again, so that it is unwrapped. It's kinda magical.
+    dd = _diff_phases(phases)
+    ddmod = np.fmod(dd + np.pi, 2.0 * np.pi) - np.pi
+    idx = np.logical_and(ddmod == -np.pi, dd > 0)
+    ddmod = np.where(idx, np.ones_like(ddmod) * np.pi, ddmod)
+    ph_correct = ddmod - dd
+    idx = np.abs(dd) < np.pi
+    ddmod = np.where(idx, np.zeros_like(ddmod), dd)
+    ph_cumsum = np.cumsum(ph_correct, axis=1)
+
+    # prepend a zero-column
+    # ph_cumsum = np.concatenate([np.zeros((phases.shape[0], 1)), ph_cumsum], axis=1)
+    # print("ph_cumsum", ph_cumsum.shape)
+    assert ph_cumsum.shape == phases.shape
+    unwrapped = phases + ph_cumsum
+    assert unwrapped.shape == phases.shape
+    return unwrapped
 
 
-def _diff_phases(phases):
-    pass
+def _diff_phases(phases: np.ndarray):
+    d = np.diff(phases, axis=1, prepend=0.0)
+    assert d.shape == phases.shape
+    return d
+
+
+# Port of the original magenta GANsynth from tensorflow to pytorch
+def _instantaneous_frequency(phases, use_unwrap=True):
+    input_shape = phases.shape
+
+    if use_unwrap:
+        # allow phases to exceed bounds [-pi, pi]
+        phase_unwrapped = _unwrap_phases(phases)
+        dphase = _diff_phases(phase_unwrapped)
+    else:
+        dphase = _diff_phases(phases)
+        # ensure that phases are bound between [-pi, pi] after
+        # taking the finite difference
+        dphase = np.where(dphase > np.pi, dphase - 2 * np.pi, dphase)
+        dphase = np.where(dphase < -np.pi, dphase + 2 * np.pi, dphase)
+
+    assert dphase.shape == input_shape
+    return dphase
 
 
 if __name__ == '__main__':
     from scipy.io import wavfile
     from pathlib import Path
+    import matplotlib.pyplot as plt
 
-    with Path('./_temp/clean/y2k-core_clean/192_kick_stylized.wav').open('rb') as fh:
+    with Path('./_temp/clean/y2k-core_clean/0_chat_stylized.wav').open('rb') as fh:
         fs, audio = wavfile.read(fh)
 
-    spec = audio_2_spectrum(audio, fs)
-    audio_out = spectrum_2_audio(spec, fs)
+    spec = audio_2_spectrum(audio, fs, use_instantaneous_frequency=True, unwrap_phase=True)
+    plt.imshow(spec[1], origin='lower')
+    plt.show()
+    audio_out = spectrum_2_audio(spec, fs, use_instantaneous_frequency=True)
 
     with Path('./pivelyd_lmao.wav').open('wb') as fh:
         wavfile.write(fh, fs, audio_out)
