@@ -1,3 +1,4 @@
+#!/usr/bin/env -S pixi run python3
 import numpy as np
 import scipy
 import torch
@@ -14,7 +15,7 @@ def audio_2_spectrum(
     use_mel_spectrum=False,
     use_instantaneous_frequency=True,
     unwrap_phase=True,
-):
+) -> torch.Tensor:
     """Convert a single audio waveform to the spectrum representation used by
     the network.
     """
@@ -30,8 +31,9 @@ def audio_2_spectrum(
 
     # Slice Zxx to have shape (128, 512)
     # this gets rid of the highest frequency component
-    Zxx = Zxx[:128, :512]
-    assert Zxx.shape == (128, 512)
+    # Cut off from 513 to 256
+    Zxx = Zxx[:128, :256]
+    assert Zxx.shape == (128, 256)
 
     magnitude_spectrum = np.abs(Zxx)
     phase_spectrum = np.angle(Zxx)
@@ -79,9 +81,9 @@ def spectrum_2_audio(
         phase_spectrum = np.cumsum(phase_spectrum, axis=1)
 
     Zxx = magnitude_spectrum * torch.exp(1j * phase_spectrum)
-    assert Zxx.shape == (128, 512)
+    assert Zxx.shape == (128, 256)
     # pad with the stuff we removed
-    Zxx_padded = np.pad(Zxx, ([0, 1], [0, 1]))
+    Zxx_padded = np.pad(Zxx, ([0, 1], [0, 513 - 256]))
     assert Zxx_padded.shape == (129, 513)
 
     _, audio = scipy.signal.istft(Zxx_padded, fs=sample_rate, nperseg=nperseg)
@@ -89,7 +91,7 @@ def spectrum_2_audio(
     return audio
 
 
-def _unwrap_phases(phases: np.ndarray):
+def _unwrap_phases(phases: np.ndarray) -> np.ndarray:
     """Unwrap cyclic phase, so that it doesn't have discontinuities"""
 
     # diffs the wrapped phase, then transforms the diffs and takes
@@ -112,7 +114,7 @@ def _unwrap_phases(phases: np.ndarray):
     return unwrapped
 
 
-def _diff_phases(phases: np.ndarray):
+def _diff_phases(phases: np.ndarray) -> np.ndarray:
     d = np.diff(phases, axis=1, prepend=0.0)
     assert d.shape == phases.shape
     return d
@@ -141,8 +143,13 @@ if __name__ == '__main__':
     from scipy.io import wavfile
     from pathlib import Path
     import matplotlib.pyplot as plt
+    import random
 
-    with Path('./_temp/clean/y2k-core_clean/0_chat_stylized.wav').open('rb') as fh:
+    dataset_dir = Path.home() / 'datasets' / 'drums' / 'train'
+    random_sample = random.choice(list(dataset_dir.glob('**/*.wav')))
+
+    # with Path('./_temp/clean/y2k-core_clean/0_chat_stylized.wav').open('rb') as fh:
+    with random_sample.open('rb') as fh:
         fs, audio = wavfile.read(fh)
 
     spec = audio_2_spectrum(audio, fs, use_instantaneous_frequency=True, unwrap_phase=True)
