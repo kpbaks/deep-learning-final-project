@@ -220,11 +220,12 @@ def train(
                 assert len(img.shape) == 3
                 mag = img[0]
                 assert len(mag.shape) == 2
-                fig, axis = plt.subplots(figsize=(10, 12))
+
+                fig, axis = plt.subplots(figsize=(6, 4))
                 axis.set_title(f'epoch: {epoch + 1} drum type: {drum_types[0]}')
-                axis.imshow(mag, origin='lower')
+                im = axis.imshow(mag, origin='lower')
                 # Show colorbar
-                fig.colorbar(img, ax=axis)
+                fig.colorbar(im, ax=axis)
 
                 run['gen/images'].append(fig)
 
