@@ -78,47 +78,47 @@ class Generator(torch.nn.Module):
         bias = False
         self.layers = torch.nn.Sequential(
             # (batch_size, latent_size + label_conditioning_size, 1, 1)
-            torch.nn.ConvTranspose2d(latent_size + label_conditioning_size, 256, (2, 4), bias=bias),
+            torch.nn.ConvTranspose2d(latent_size + label_conditioning_size, 256, (2, 2), bias=bias),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=inplace),
             PixelNorm(),
-            # (batch_size, 256, 2, 4)
+            # (batch_size, 256, 2, 2)
             torch.nn.Conv2d(256, 256, (3, 3), padding=(1, 1), bias=False),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=inplace),
             PixelNorm(),
-            # (batch_size, 256, 2, 4)
+            # (batch_size, 256, 2, 2)
             torch.nn.ConvTranspose2d(256, 256, (2, 2), stride=2, padding=0, bias=False),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=inplace),
             PixelNorm(),
-            # (batch_size, 256, 4, 8)
+            # (batch_size, 256, 4, 4)
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=inplace),
             PixelNorm(),
             torch.nn.ConvTranspose2d(256, 128, (2, 2), stride=2, padding=0, bias=False),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=inplace),
             PixelNorm(),
-            # # (batch_size, 128, 8, 16)
+            # # (batch_size, 128, 8, 8)
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=inplace),
             PixelNorm(),
             torch.nn.ConvTranspose2d(128, 64, (2, 2), stride=2, padding=0, bias=False),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=inplace),
             PixelNorm(),
-            # # (batch_size, 64, 16, 32)
+            # # (batch_size, 64, 16, 16)
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=inplace),
             PixelNorm(),
             torch.nn.ConvTranspose2d(64, 32, (2, 2), stride=2, padding=0, bias=False),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=inplace),
             PixelNorm(),
-            # # (batch_size, 32, 32, 64)
+            # # (batch_size, 32, 32, 32)
             torch.nn.ConvTranspose2d(32, 32, (2, 2), stride=2, padding=0, bias=False),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=inplace),
             PixelNorm(),
-            # (batch_size, 32, 64, 128)
+            # (batch_size, 32, 64, 64)
             torch.nn.ConvTranspose2d(32, 2, (2, 2), stride=2, padding=0, bias=False),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=inplace),
             PixelNorm(),
-            # (batch_size, 2, 128, 256)
+            # (batch_size, 2, 128, 128)
             torch.nn.Conv2d(2, 2, (1, 1), stride=1, padding=0, bias=False),
             torch.nn.Tanh(),
-            ShapeChecker(torch.Size([2, 128, 256])),
+            ShapeChecker(torch.Size([2, 128, 128])),
             # (batch_size, 2, 128, 256)
         )
 
@@ -146,7 +146,7 @@ class Generator(torch.nn.Module):
 
         expect(latent_vector_size, 1, 1)
         x = self.layers(x)
-        expect(2, 128, 256)
+        expect(2, 128, 128)
         return x
 
 
@@ -170,28 +170,28 @@ class Discriminator(torch.nn.Module):
         # # WaveGAN uses a fully connected layer at the end, so I will do the same.
 
         self.layers = torch.nn.Sequential(
-            # (batch_size, 2, 128, 256)
+            # (batch_size, 2, 128, 128)
             torch.nn.Conv2d(2, 32, kernel_size=(1, 1), bias=False),
             torch.nn.Conv2d(32, 32, kernel_size=(3, 3), padding=(1, 1), bias=False),
             torch.nn.BatchNorm2d(32),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
             torch.nn.AvgPool2d((2, 2), stride=2),
-            # (batch_size, 32, 64, 128)
+            # (batch_size, 32, 64, 64)
             torch.nn.Conv2d(32, 64, kernel_size=(3, 3), bias=False, padding=(1, 1)),
             torch.nn.BatchNorm2d(64),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
             torch.nn.AvgPool2d((2, 2), stride=2),
-            # (batch_size, 64, 32, 64)
+            # (batch_size, 64, 32, 32)
             torch.nn.Conv2d(64, 128, kernel_size=(3, 3), bias=False, padding=(1, 1)),
             torch.nn.BatchNorm2d(128),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
             torch.nn.AvgPool2d((2, 2), stride=2),
-            # (batch_size, 128, 16, 32)
+            # (batch_size, 128, 16, 16)
             torch.nn.Conv2d(128, 256, kernel_size=(3, 3), bias=False, padding=(1, 1)),
             torch.nn.BatchNorm2d(256),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
             torch.nn.AvgPool2d((2, 2), stride=2),
-            # (batch_size, 256, 8, 16)
+            # (batch_size, 256, 8, 8)
             torch.nn.Conv2d(256, 256, kernel_size=(3, 3), bias=False, padding=(1, 1)),
             torch.nn.BatchNorm2d(256),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
@@ -199,15 +199,15 @@ class Discriminator(torch.nn.Module):
             torch.nn.BatchNorm2d(256),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
             torch.nn.AvgPool2d((2, 2), stride=2),
-            # (batch_size, 256, 4, 8)
+            # (batch_size, 256, 4, 4)
             torch.nn.Conv2d(256, 4, kernel_size=(3, 3), bias=False, padding=(1, 1)),
             torch.nn.BatchNorm2d(4),
             torch.nn.LeakyReLU(negative_slope=leaky_relu_negative_slope, inplace=True),
             torch.nn.AvgPool2d((2, 2), stride=2),
-            ShapeChecker(torch.Size([4, 2, 4])),
+            ShapeChecker(torch.Size([4, 2, 2])),
             torch.nn.Flatten(),
-            # (batch_size, 4, 2, 4)
-            torch.nn.Linear(4 * 2 * 4, 1),  # For Wasserstein loss
+            # (batch_size, 4, 2, 2)
+            torch.nn.Linear(4 * 2 * 2, 1),  # For Wasserstein loss
             # torch.nn.Conv2d(in_channels=4, out_channels=1, kernel_size=(2, 8), bias=False),
             # TODO: maybe try Linear instead of Conv2d?
             # torch.nn.Sigmoid(),
