@@ -1,7 +1,28 @@
 # deep-learning-final-project
 Final Project for the Deep Learning course at Aarhus University Autumn 2023
 
-## SSH tutorial lmaooo
+## Important files
+
+- `dataset.py` - Dataset class for loading audio samples
+- `model.py` - Class definition for both Generator and Discriminator
+- `train.py` - Training loop
+- `stft.py` - STFT implementation. Used for converting between time and frequency domain
+- `app.py` - Script to run a trained model and have it generate a sample
+
+## Running the code
+
+Use the `-h | --help` flag to see all available for each script.
+
+## Dependencies
+
+[pixi](https://prefix.dev/) is used for managing dependencies and virtual environments. To install all dependencies run:
+```bash
+./install-dependencies.sh
+```
+
+---
+
+## SSH tutorial
 
 Tired of logging into servers? Do this!
 
