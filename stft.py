@@ -1,4 +1,5 @@
 #!/usr/bin/env -S pixi run python3
+# %%
 import numpy as np
 import scipy
 import torch
@@ -81,10 +82,10 @@ def spectrum_2_audio(
         phase_spectrum = np.cumsum(phase_spectrum, axis=1)
 
     Zxx = magnitude_spectrum * torch.exp(1j * phase_spectrum)
-    assert Zxx.shape == (128, 256)
+    assert Zxx.shape == (128, 256), f'Zxx.shape={Zxx.shape}'
     # pad with the stuff we removed
     Zxx_padded = np.pad(Zxx, ([0, 1], [0, 513 - 256]))
-    assert Zxx_padded.shape == (129, 513)
+    assert Zxx_padded.shape == (129, 513), f'Zxx_padded.shape={Zxx_padded.shape = }'
 
     _, audio = scipy.signal.istft(Zxx_padded, fs=sample_rate, nperseg=nperseg)
 
@@ -144,17 +145,66 @@ if __name__ == '__main__':
     from pathlib import Path
     import matplotlib.pyplot as plt
     import random
+    import argparse
+    import os
+    import time
+
+    parser = argparse.ArgumentParser(prog=os.path.basename(__file__))
+    parser.add_argument(
+        '--drum-type', type=str, choices=['kick', 'snare', 'chat', 'ohat'], default='snare'
+    )
+    args = parser.parse_args()
 
     dataset_dir = Path.home() / 'datasets' / 'drums' / 'train'
-    random_sample = random.choice(list(dataset_dir.glob('**/*.wav')))
+    assert dataset_dir.exists(), f'{dataset_dir} does not exist'
+    assert dataset_dir.is_dir(), f'{dataset_dir} is not a directory'
 
+    # Get a random sample from the dataset with the specified drum type
+    random_sample = random.choice(list(dataset_dir.glob(f'*_{args.drum_type}_*.wav')))
+
+    # random_sample = random.choice(list(dataset_dir.glob('**/*.wav')))
+    fs, audio = wavfile.read(random_sample)
     # with Path('./_temp/clean/y2k-core_clean/0_chat_stylized.wav').open('rb') as fh:
-    with random_sample.open('rb') as fh:
-        fs, audio = wavfile.read(fh)
+    # with random_sample.open('rb') as fh:
+    # fs, audio = wavfile.read(fh)
 
     spec = audio_2_spectrum(audio, fs, use_instantaneous_frequency=True, unwrap_phase=True)
-    plt.imshow(spec[1], origin='lower')
+
+    # ax0 = plt.subplot2grid((1, 3), (0, 0))
+    # ax0.set_title('Magnitude Spectrum')
+    # ax0.imshow(spec[0], origin='lower')
+    # ax1 = plt.subplot2grid((1, 3), (0, 1))
+    # # Plot the magnitude spectrum in the upper left corner
+    # ax1.set_title('Phase Spectrum')
+    # ax1.imshow(spec[1], origin='lower')
+    # # Plot the time series in the lower left corner
+    # ax2 = plt.subplot2grid((1, 3), (0, 2))
+    # ax2.set_title('Time Series')
+    # ax2.plot(audio)
+
+    fig = plt.figure(figsize=(6, 4))
+    ax00 = plt.subplot2grid((2, 2), (0, 0), fig=fig)
+    ax00.set_title('Magnitude Spectrum')
+    ax00.imshow(spec[0], origin='lower')
+    ax01 = plt.subplot2grid((2, 2), (0, 1), fig=fig)
+    # Plot the magnitude spectrum in the upper left corner
+    ax01.set_title('Phase Spectrum')
+    ax01.imshow(spec[1], origin='lower')
+    # Plot the time series in the lower left corner
+    ax10 = plt.subplot2grid((2, 2), (1, 0), colspan=2, fig=fig)
+    ax10.set_title('Time Series')
+    ax10.plot(audio[: len(audio) // 2])
+    # ax10.plot(audio)
+
+    # fig, axis = plt.subplots(2, 2, figsize=(8, 6))
+    # Plot the phase spectrum in the upper right corner
+    plt.tight_layout()
     plt.show()
+    now: int = int(time.time())
+    plt.savefig(f'{args.drum_type}_spectrum_{now}.png', dpi=120)
+    plt.savefig(f'{args.drum_type}_spectrum_{now}.svg')
+
+    # plt.imshow(spec[1], origin='lower')
     audio_out = spectrum_2_audio(spec, fs, use_instantaneous_frequency=True)
 
     with Path('./pivelyd_lmao.wav').open('wb') as fh:

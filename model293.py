@@ -1,4 +1,3 @@
-#!/usr/bin/env -S pixi run python3
 # %%
 import torch
 import time
@@ -251,19 +250,10 @@ def main() -> int:
     d = Discriminator(0.2)
     d.to(device)
 
-    num_d_trainable_params = sum(p.numel() for p in d.parameters() if p.requires_grad)
-    num_d_total_params = sum(p.numel() for p in d.parameters())
-    logger.info(f'{num_d_trainable_params = }')
-    logger.info(f'{num_d_total_params = }')
-
     latent_size: int = 256
     pitch_conditioning_size: int = 4
     g = Generator(latent_size, pitch_conditioning_size, 0.2)
     g.to(device)
-    num_g_trainable_params = sum(p.numel() for p in g.parameters() if p.requires_grad)
-    num_g_total_params = sum(p.numel() for p in g.parameters())
-    logger.info(f'{num_g_trainable_params = }')
-    logger.info(f'{num_g_total_params = }')
 
     t_start = time.time()
 

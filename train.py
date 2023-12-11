@@ -19,7 +19,9 @@ from loguru import logger
 # import tqdm
 # from tqdm.rich import tqdm as rtqdm, trange as rtrange
 from tqdm import tqdm, trange
-import pretty_errors  # noqa
+import pretty_errors
+
+from stft import spectrum_2_audio  # noqa
 
 try:
     from rich import pretty, print
@@ -156,7 +158,6 @@ def train(
     d: Discriminator,
     device: torch.device,
     train_dataloader: torch.utils.data.DataLoader,
-    val_dataloader: torch.utils.data.DataLoader,
     params: Params,
     run: neptune.Run,
 ) -> None:
@@ -221,11 +222,15 @@ def train(
                 mag = img[0]
                 assert len(mag.shape) == 2
 
-                fig, axis = plt.subplots(figsize=(6, 4))
-                axis.set_title(f'epoch: {epoch + 1} drum type: {drum_types[0]}')
-                im = axis.imshow(mag, origin='lower')
+                fig, axis = plt.subplots(2, 1, figsize=(8, 6))
+                axis[0].set_title(f'epoch: {epoch + 1} drum type: {drum_types[0]}')
+                im = axis[0].imshow(mag, origin='lower')
+                fig.colorbar(im, ax=axis[0])
+
+                audio = spectrum_2_audio(torch.from_numpy(img), 44100.0)
+                axis[1].plot(audio)
+                axis[1].set_title('audio')
                 # Show colorbar
-                fig.colorbar(im, ax=axis)
 
                 run['gen/images'].append(fig)
 
@@ -268,24 +273,24 @@ def train(
                 g_optim.step()
                 run['train/error/generator'].append(g_loss.item())
 
-        # Run evaluation on validation set
-        with torch.no_grad():
-            d.eval()
-            g.eval()
-            # run on valudation set
-            for i, (data, drum_types) in enumerate(val_dataloader, 0):
-                real_data = data.to(device)
-                batch_size = data.size(0)
-                noise = generate_noise(
-                    batch_size, params.latent_sz, params.n_classes, drum_types, device
-                )
-                fake_data = g(noise)
+        # # Run evaluation on validation set
+        # with torch.no_grad():
+        #     d.eval()
+        #     g.eval()
+        #     # run on valudation set
+        #     for i, (data, drum_types) in enumerate(val_dataloader, 0):
+        #         real_data = data.to(device)
+        #         batch_size = data.size(0)
+        #         noise = generate_noise(
+        #             batch_size, params.latent_sz, params.n_classes, drum_types, device
+        #         )
+        #         fake_data = g(noise)
 
-                d_loss = -torch.mean(d(real_data)) + torch.mean(d(fake_data))
-                run['val/error/discriminator'].append(d_loss.item())
+        #         d_loss = -torch.mean(d(real_data)) + torch.mean(d(fake_data))
+        #         run['val/error/discriminator'].append(d_loss.item())
 
-                g_loss = -torch.mean(d(fake_data))
-                run['val/error/generator'].append(g_loss.item())
+        #         g_loss = -torch.mean(d(fake_data))
+        #         run['val/error/generator'].append(g_loss.item())
 
         # Save model every N epochs
         if (epoch + 1) % params.save_model_every == 0:
@@ -297,31 +302,31 @@ def train(
             save_snapshot_of_both_models_and_optimizers()
 
 
-def test(
-    g: Generator,
-    d: Discriminator,
-    device: torch.device,
-    test_dataloader: torch.utils.data.DataLoader,
-    params: Params,
-    run: neptune.Run,
-) -> None:
-    with torch.no_grad():
-        d.eval()
-        g.eval()
-        # run on valudation set
-        for i, (data, drum_types) in enumerate(test_dataloader, 0):
-            real_data = data.to(device)
-            batch_size = data.size(0)
-            noise = generate_noise(
-                batch_size, params.latent_sz, params.n_classes, drum_types, device
-            )
-            fake_data = g(noise)
+# def test(
+#     g: Generator,
+#     d: Discriminator,
+#     device: torch.device,
+#     test_dataloader: torch.utils.data.DataLoader,
+#     params: Params,
+#     run: neptune.Run,
+# ) -> None:
+#     with torch.no_grad():
+#         d.eval()
+#         g.eval()
+#         # run on valudation set
+#         for i, (data, drum_types) in enumerate(test_dataloader, 0):
+#             real_data = data.to(device)
+#             batch_size = data.size(0)
+#             noise = generate_noise(
+#                 batch_size, params.latent_sz, params.n_classes, drum_types, device
+#             )
+#             fake_data = g(noise)
 
-            d_loss = -torch.mean(d(real_data)) + torch.mean(d(fake_data))
-            run['test/error/discriminator'].append(d_loss.item())
+#             d_loss = -torch.mean(d(real_data)) + torch.mean(d(fake_data))
+#             run['test/error/discriminator'].append(d_loss.item())
 
-            g_loss = -torch.mean(d(fake_data))
-            run['test/error/generator'].append(g_loss.item())
+#             g_loss = -torch.mean(d(fake_data))
+#             run['test/error/generator'].append(g_loss.item())
 
 
 def select_cuda_device_by_memory() -> torch.device | None:
@@ -476,18 +481,18 @@ def main() -> int:
     assert val_dir.is_dir(), f'{val_dir} is not a directory'
 
     train_dataset = DrumsDataset(train_dir)
-    test_dataset = DrumsDataset(test_dir)
-    val_dataset = DrumsDataset(val_dir)
+    # test_dataset = DrumsDataset(test_dir)
+    # val_dataset = DrumsDataset(val_dir)
 
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset, batch_size=params.batch_size, shuffle=True, num_workers=2
     )
-    test_dataloader = torch.utils.data.DataLoader(
-        test_dataset, batch_size=params.batch_size, shuffle=True, num_workers=2
-    )
-    val_dataloader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=params.batch_size, shuffle=True, num_workers=2
-    )
+    # test_dataloader = torch.utils.data.DataLoader(
+    #     test_dataset, batch_size=params.batch_size, shuffle=True, num_workers=2
+    # )
+    # val_dataloader = torch.utils.data.DataLoader(
+    #     val_dataset, batch_size=params.batch_size, shuffle=True, num_workers=2
+    # )
 
     print_cuda_memory_usage()
 
@@ -508,20 +513,19 @@ def main() -> int:
         d=d,
         device=device,
         train_dataloader=train_dataloader,
-        val_dataloader=val_dataloader,
         params=params,
         run=run,
     )
 
-    logger.info('starting testing')
-    test(
-        g=g,
-        d=d,
-        device=device,
-        test_dataloader=test_dataloader,
-        params=params,
-        run=run,
-    )
+    # logger.info('starting testing')
+    # test(
+    #     g=g,
+    #     d=d,
+    #     device=device,
+    #     test_dataloader=test_dataloader,
+    #     params=params,
+    #     run=run,
+    # )
 
     run.stop()
 

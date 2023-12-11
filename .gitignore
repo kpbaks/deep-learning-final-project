@@ -172,3 +172,6 @@ runs/
 .neptune/
 
 models/
+
+*.png
+*.svg
